@@ -6,7 +6,6 @@ resources:
   - ../base
   - backup.yaml
   - upol-redirect.yaml
-  - preview.yaml  # temporary, until the domains move to the cluster
 # a release: the images of one commit on main, not latest
 images:
   - name: ghcr.io/sb-ncbr/moleonline-api
