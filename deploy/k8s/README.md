@@ -34,8 +34,8 @@ A release is a commit on `main` whose CI run passed: set it as `newTag` of all t
 Each domain has a certificate of its own, issued by HTTP-01: Let's Encrypt asks the domain itself, so a certificate is
 issued only while its domain resolves to the cluster. `moleonline.biodata.ceitec.cz` is a CNAME to
 `kuba-lb.cloud.e-infra.cz`; `moleonline.cz`, the zone's apex, cannot be a CNAME and has the A record of
-`kuba-lb.cloud.e-infra.cz` (147.251.252.9). `mole.upol.cz`, the old domain, is a CNAME to `moleonline.cz`; it only
-redirects there, keeping the path ([`prod/upol-redirect.yaml`](prod/upol-redirect.yaml)).
+`kuba-lb.cloud.e-infra.cz` (147.251.252.9). `mole.upol.cz`, the old domain, and `www.moleonline.cz` are CNAMEs to
+`moleonline.cz`; they only redirect there, keeping the path ([`prod/upol-redirect.yaml`](prod/upol-redirect.yaml)).
 
 The database dumps (`pg_dump -Fc`, the last 14) are on the volume `moleonline-db-backup`, which CERIT-SC backs up for
 30 days. To restore one into the running database:

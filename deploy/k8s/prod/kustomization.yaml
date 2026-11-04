@@ -138,6 +138,25 @@ patches:
             allowedRoutes:
               namespaces:
                 from: Same
+          # www.moleonline.cz, a CNAME to moleonline.cz: only redirected there (upol-redirect.yaml)
+          - name: web-www
+            protocol: HTTP
+            port: 8000
+            hostname: www.moleonline.cz
+            allowedRoutes:
+              namespaces:
+                from: Same
+          - name: websecure-www
+            protocol: HTTPS
+            port: 8443
+            hostname: www.moleonline.cz
+            tls:
+              mode: Terminate
+              certificateRefs:
+                - name: moleonline-www-tls
+            allowedRoutes:
+              namespaces:
+                from: Same
   - patch: |-
       apiVersion: gateway.networking.k8s.io/v1
       kind: HTTPRoute

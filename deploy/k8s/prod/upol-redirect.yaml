@@ -1,4 +1,5 @@
-# mole.upol.cz, MOLEonline's old domain: every address, over HTTP and HTTPS, redirected to the same one at moleonline.cz
+# mole.upol.cz, MOLEonline's old domain, and www.moleonline.cz: every address, over HTTP and HTTPS, redirected to the
+# same one at moleonline.cz
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -9,8 +10,13 @@ spec:
       sectionName: web-upol
     - name: moleonline
       sectionName: websecure-upol
+    - name: moleonline
+      sectionName: web-www
+    - name: moleonline
+      sectionName: websecure-www
   hostnames:
     - mole.upol.cz
+    - www.moleonline.cz
   rules:
     - filters:
         - type: RequestRedirect
