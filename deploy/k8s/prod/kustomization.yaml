@@ -6,14 +6,15 @@ resources:
   - ../base
   - backup.yaml
   - upol-redirect.yaml
+  - preview.yaml  # temporary, until the domains move to the cluster
 # a release: the images of one commit on main, not latest
 images:
   - name: ghcr.io/sb-ncbr/moleonline-api
-    newTag: 497ac3fd5d3c63320f45393ff520edcfed28f644
+    newTag: 1a5feeea400cc6051ea087ed712a2117dcd538db
   - name: ghcr.io/sb-ncbr/moleonline-worker
-    newTag: 497ac3fd5d3c63320f45393ff520edcfed28f644
+    newTag: 1a5feeea400cc6051ea087ed712a2117dcd538db
   - name: ghcr.io/sb-ncbr/moleonline-web
-    newTag: 497ac3fd5d3c63320f45393ff520edcfed28f644
+    newTag: 1a5feeea400cc6051ea087ed712a2117dcd538db
 replicas:
   - name: moleonline-worker  # MAX_RUNNING_PROGRAMMATIC (the patch below) is about half of them
     count: 4
