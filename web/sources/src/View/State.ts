@@ -18,8 +18,8 @@ import { PluginCommands } from "molstar/lib/mol-plugin/commands";
 import { ColorGenerator } from "molstar/lib/extensions/meshes/mesh-utils";
 import { Shape } from "molstar/lib/mol-model/shape";
 import { Colors, Enum } from "../StaticData";
-import { PropertyColoring, sameColoring } from "./CommonUtils/PropertyColors";
-import { channelColoring } from "./VizualizerMol/color-tunnels/property-color";
+import { ColoringProperty, PropertyColoring, sameColoring } from "./CommonUtils/PropertyColors";
+import { channelColoring, channelProperties } from "./VizualizerMol/color-tunnels/property-color";
 import { LayerColors } from "./CommonUtils/LayerColors";
 import { TwoDProtsBridge } from "./CommonUtils/TwoDProtsBridge";
 import { TunnelsId } from "./CommonUtils/TunnelsId";
@@ -622,17 +622,62 @@ async function updateChannelVisual(channel: Tunnel & TunnelMetaInfo, visible: bo
     }
 }
 
+// Runs the update of each channel one after another, all of them even when some fail; returns those that failed
+async function eachChannel(channels: (Tunnel & TunnelMetaInfo)[], update: (channel: Tunnel & TunnelMetaInfo) => Promise<unknown>) {
+    const failed: (Tunnel & TunnelMetaInfo)[] = [];
+    for (const channel of channels) {
+        channel.__isBusy = true;
+        try {
+            await update(channel);
+        } catch {
+            failed.push(channel);
+        } finally {
+            channel.__isBusy = false;
+        }
+    }
+    return failed;
+}
+
+// The channels shown, coloured by the coloring one after another, each new coloured surface computed alone; a channel
+// hidden meanwhile is left hidden. Returns the channels that could not be coloured.
+export function colorShownChannels(coloring: PropertyColoring): Promise<(Tunnel & TunnelMetaInfo)[]> {
+    return whileRendering(() => eachChannel(LastVisibleChannels.get().filter(c => c.__isVisible),
+        channel => updateChannelPropertyColorVisual(channel, coloring, true, undefined, true)));
+}
+
+// The coloured channels shown, in their plain colour again one after another; a channel hidden or uncoloured meanwhile is
+// left as it is. Returns the channels that could not be shown plain.
+export function uncolorShownChannels(): Promise<(Tunnel & TunnelMetaInfo)[]> {
+    return whileRendering(() => eachChannel(LastVisibleChannels.get().filter(c => c.__isVisible && c.__layerColored),
+        channel => serializeChannelOperation(channel, async () => {
+            if (channel.__isVisible && channel.__layerColored) await updateChannelVisual(channel, true, true);
+        })));
+}
+
+export function shownChannelCount() {
+    return LastVisibleChannels.get().filter(c => c.__isVisible).length;
+}
+
+// The properties every channel shown can be coloured by, in the order of the first one's data
+export function shownChannelProperties(): ColoringProperty[] {
+    const shown = LastVisibleChannels.get().filter(c => c.__isVisible);
+    if (shown.length === 0) return [];
+    const each = shown.map(c => new Set(channelProperties(c.Layers.LayersInfo)));
+    return channelProperties(shown[0].Layers.LayersInfo).filter(p => each.every(properties => properties.has(p)));
+}
+
 export function showChannelPropertyColorVisuals(channel: Tunnel & TunnelMetaInfo, coloring: PropertyColoring, forceRepaint?: boolean, channelsDB?: boolean): Promise<any> {
     return whileRendering(() => updateChannelPropertyColorVisual(channel, coloring, forceRepaint, channelsDB));
 }
 
-async function updateChannelPropertyColorVisual(channel: Tunnel & TunnelMetaInfo, coloring: PropertyColoring, forceRepaint?: boolean, channelsDB?: boolean) {
+// onlyShown: a hidden channel is left hidden, also with forceRepaint (which replaces the visual of a shown channel)
+async function updateChannelPropertyColorVisual(channel: Tunnel & TunnelMetaInfo, coloring: PropertyColoring, forceRepaint?: boolean, channelsDB?: boolean, onlyShown = false) {
     const context = Context.getInstance();
 
     try {
         await serializeChannelOperation(channel, async () => {
             if (!channel.__id) channel.__id = UUID.create22();
-            if (!channel.__isVisible && !forceRepaint) return;
+            if (!channel.__isVisible && (!forceRepaint || onlyShown)) return;
 
             if (channel.__color === void 0) {
                 // channel.__color = ColorScheme.Colors.getRandomUnused(); // TODO

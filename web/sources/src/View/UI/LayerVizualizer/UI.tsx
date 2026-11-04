@@ -207,6 +207,10 @@ export class LayerVizualizer extends React.Component<{ vizualizer: Vizualizer },
             }
         }));
 
+        this.unsubscribe.push(listen("channelsRendering", (isRendering: boolean) => {
+            if (!isRendering) this.showChannelColoring();
+        }));
+
         window.addEventListener("resize", this.repaint);
         this.unsubscribe.push(
             listen("lvContentResize", this.repaint),
@@ -222,6 +226,22 @@ export class LayerVizualizer extends React.Component<{ vizualizer: Vizualizer },
 
     private repaint = () => {
         this.forceUpdate();
+    }
+
+    // The profile shows the colouring its channel got elsewhere, coloured with the others shown ("Colour all"), so that its
+    // property and bounds keep describing the channel's 3D colours
+    private showChannelColoring() {
+        const channel = this.state.channel;
+        const coloring = channel?.__layerColored ? channel.__coloring : undefined;
+        if (!coloring || !this.state.isDOMReady) return;
+        const colorBoundsMode: ColorBoundsMode = coloring.minMax ? "Min/max" : "Absolute";
+        if (coloring.property === this.state.coloringPropertyKey && colorBoundsMode === this.state.colorBoundsMode) return;
+        const vizualizer = this.props.vizualizer;
+        vizualizer.setColoringPropertyKey(coloring.property);
+        vizualizer.setColorBoundsMode(colorBoundsMode);
+        vizualizer.vizualize();
+        LayerColors.setColoring(coloring);
+        this.setState({ coloringPropertyKey: coloring.property, colorBoundsMode });
     }
 
     render() {
@@ -535,6 +555,10 @@ class PropertyColorTunnel extends React.Component<{ state: State }, { context: C
         this.unsubscribe.push(
             LayerColors.attachOnChannelRemoved(this.onChannelRemoved.bind(this)),
             LayerColors.attachOnColoringChanged(this.onColoringChanged.bind(this)),
+            // channels coloured or uncoloured elsewhere (all of them at once)
+            listen("channelsRendering", (isRendering: boolean) => {
+                if (!isRendering) this.setState({ checked: !!this.channel?.__layerColored });
+            }),
             LayerColors.attachOnChannelAdd(this.onChannelAdd.bind(this)),
             LayerColors.attachLayerIndexOver(this.onLayerIndexOver.bind(this)),
             LayerColors.attachLayerIndexSelect(this.onLayerIndexSelect.bind(this)),

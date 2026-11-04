@@ -9,12 +9,14 @@ import { Tunnels } from "../../CommonUtils/Tunnels";
 import { ChannelsDBData, TunnelName } from "../../../Cache";
 import { ChannelAnnotation } from "../../../ChannelsDBAPIService";
 import { getParameters, isInChannelsDBMode } from "../../../Common/Util/Router";
-import { isRenderingChannels, showChannelVisuals, showDefaultVisuals, showDefaultVisualsNewSubmission } from "../../State";
+import { colorShownChannels, isRenderingChannels, showChannelVisuals, showDefaultVisuals, showDefaultVisualsNewSubmission, shownChannelCount, shownChannelProperties, uncolorShownChannels } from "../../State";
+import { ColoringProperty } from "../../CommonUtils/PropertyColors";
+import Dropdown from "bootstrap/js/dist/dropdown";
 import { listen } from "../../CommonUtils/Events";
 import { Context } from "../../Context";
 import { Representation } from "molstar/lib/mol-repr/representation";
 import { EmptyLoci } from "molstar/lib/mol-model/loci";
-import { Colors, Enum } from "../../../StaticData";
+import { Bundle, Colors, Enum } from "../../../StaticData";
 import { Color } from "molstar/lib/mol-util/color";
 import { ApiService, Session } from "../../../MoleAPIService";
 import { describeError, isNotFound } from "../../../Http";
@@ -24,22 +26,52 @@ import { TwoDProtsBridge } from "../../CommonUtils/TwoDProtsBridge";
 import { TunnelsId } from "../../CommonUtils/TunnelsId";
 import { CommonOptions } from "../../../../config/common";
 
+// More channels shown than this are coloured all only when the user confirms it: a channel takes about 0.2 s
+const COLOR_ALL_WITHOUT_ASKING = 50;
 
 type ChannelsControlProps = { computationId: string, submissions: Map<number, ChannelsDBChannels>, reload: () => void }
 type ChannelsControlState = {
     submissions: Map<number, ChannelsDBChannels>,
     submissionsElems: Map<number, any[]>,
     currentSubmitId: number,
-    isRendering: boolean
+    isRendering: boolean,
+    colorAllProperties: ColoringProperty[], // what the channels shown can all be coloured by, when the menu was opened
+    colorAllShown: number, // the channels shown then
+    colorAllMinMax: boolean,
 }
 
 export class ChannelsControl extends React.Component<ChannelsControlProps, ChannelsControlState> {
     //TODO store selected/visualized tunnels for 2DProts
-    state = { submissions: new Map<number, ChannelsDBChannels>(), submissionsElems: new Map<number, any[]>(), currentSubmitId: 0, isRendering: isRenderingChannels() };
+    state: ChannelsControlState = {
+        submissions: new Map<number, ChannelsDBChannels>(), submissionsElems: new Map<number, any[]>(), currentSubmitId: 0,
+        isRendering: isRenderingChannels(), colorAllProperties: [], colorAllShown: 0, colorAllMinMax: false,
+    };
+    private colorAllButton = React.createRef<HTMLButtonElement>();
 
     private toggle(e: React.MouseEvent<HTMLElement>) {
         e.preventDefault();
         Tunnels.invokeOnTunnelsHide();
+    }
+
+    // Colours the channels shown by the property and the bounds chosen in the menu; many of them take a while, so the user
+    // is asked
+    private async colorAll(property: ColoringProperty) {
+        Dropdown.getOrCreateInstance(this.colorAllButton.current!).hide();
+        const count = shownChannelCount();
+        if (count > COLOR_ALL_WITHOUT_ASKING && !window.confirm(`Colouring all ${count} channels shown may take a while. Colour them?`)) {
+            return;
+        }
+        const failed = await colorShownChannels({ property, minMax: this.state.colorAllMinMax });
+        if (failed.length > 0) {
+            Events.invokeNotifyMessage({ messageType: "Danger", message: `${failed.length} of the ${count} channels could not be coloured.` });
+        }
+    }
+
+    private async uncolorAll() {
+        const failed = await uncolorShownChannels();
+        if (failed.length > 0) {
+            Events.invokeNotifyMessage({ messageType: "Danger", message: `${failed.length} channels could not be shown in their plain colours.` });
+        }
     }
 
     private channelsPublished = false;
@@ -293,7 +325,35 @@ export class ChannelsControl extends React.Component<ChannelsControlProps, Chann
                             ? <span className="channels-rendering"><span className="spinner-border spinner-border-sm" role="status" /> Rendering…</span>
                             : null}
                     </span>
-                    <button className="btn btn-primary btn-sm bt-none" style={{ marginTop: '0.5em', marginBottom: '0.5em' }} onClick={e => this.toggle(e)}>Hide all</button>
+                    <span>
+                        <span className="btn-group" style={{ marginRight: '0.3em' }}>
+                            <button ref={this.colorAllButton} className="btn btn-primary btn-sm bt-none dropdown-toggle" style={{ marginTop: '0.5em', marginBottom: '0.5em' }}
+                                disabled={this.state.isRendering} data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
+                                title="Colour every channel shown by a property all of them have"
+                                onClick={() => this.setState({ colorAllProperties: shownChannelProperties(), colorAllShown: shownChannelCount() })}>Colour all</button>
+                            <ul className="dropdown-menu color-all-menu">
+                                {this.state.colorAllProperties.length === 0
+                                    ? <li><span className="dropdown-item-text">{this.state.colorAllShown === 0
+                                        ? "No channels are shown."
+                                        : "The channels shown have no property in common."}</span></li>
+                                    : <>
+                                        <li><h6 className="dropdown-header">Colour bounds</h6></li>
+                                        {[false, true].map(minMax => <li key={String(minMax)}>
+                                            <a href="#" className={`dropdown-item${this.state.colorAllMinMax === minMax ? ' active' : ''}`}
+                                                onClick={e => { e.preventDefault(); this.setState({ colorAllMinMax: minMax }); }}>{minMax ? 'Min/max' : 'Absolute'}</a>
+                                        </li>)}
+                                        <li><hr className="dropdown-divider" /></li>
+                                        <li><h6 className="dropdown-header">Colour by</h6></li>
+                                        {this.state.colorAllProperties.map(property => <li key={property}>
+                                            <a href="#" className="dropdown-item" onClick={e => { e.preventDefault(); this.colorAll(property); }}>{Bundle.get(property)}</a>
+                                        </li>)}
+                                    </>}
+                            </ul>
+                        </span>
+                        <button className="btn btn-primary btn-sm bt-none" style={{ marginTop: '0.5em', marginBottom: '0.5em', marginRight: '0.3em' }} disabled={this.state.isRendering}
+                            title="Show every coloured channel in its plain colour again" onClick={() => this.uncolorAll()}>Uncolour all</button>
+                        <button className="btn btn-primary btn-sm bt-none" style={{ marginTop: '0.5em', marginBottom: '0.5em' }} onClick={e => this.toggle(e)}>Hide all</button>
+                    </span>
                 </div>
                 <div className="accordion flex-fill overflow-auto" id="channelsAccordion">
                     {(submissionsControls.length === 0) ? noChannelsData : submissionsControls}

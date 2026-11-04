@@ -1,7 +1,7 @@
 import { Color } from 'molstar/lib/mol-util/color';
 import { ColorPaletteFunctionSettings } from './data-model';
 import { LayersInfo } from '../../../DataInterface';
-import { availableColoring, channelGradient, colorAt, layerValue, PropertyColoring } from '../../CommonUtils/PropertyColors';
+import { availableColoring, channelGradient, colorAt, ColoringProperty, hasProperty, layerValue, PALETTES, PropertyColoring } from '../../CommonUtils/PropertyColors';
 
 
 export const DefaultColor = Color(0xFAFAFA);
@@ -254,9 +254,17 @@ export function colorTunnel(property: Property, groupId: number,
     return DefaultColor;
 }
 
+const valuesOf = (layers: LayersInfo[]) => layers.map(l => ({ MinBRadius: l.LayerGeometry.MinBRadius, Properties: l.Properties as unknown as Record<string, number> }));
+
 // The coloring a channel's layers can take, see availableColoring
 export function channelColoring(layers: LayersInfo[], coloring: PropertyColoring): PropertyColoring {
-    return availableColoring(layers.map(l => ({ MinBRadius: l.LayerGeometry.MinBRadius, Properties: l.Properties as unknown as Record<string, number> })), coloring);
+    return availableColoring(valuesOf(layers), coloring);
+}
+
+// The properties a channel's layers can be coloured by, in the order of their data, BRadius last
+export function channelProperties(layers: LayersInfo[]): ColoringProperty[] {
+    const candidates = [...Object.keys(layers[0]?.Properties ?? {}), "BRadius"] as ColoringProperty[];
+    return candidates.filter(p => p in PALETTES && hasProperty(valuesOf(layers), p));
 }
 
 // The colour at each distance along the channel: the 2D profile's gradient of the channel by the coloring

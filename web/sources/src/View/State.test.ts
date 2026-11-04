@@ -46,7 +46,7 @@ vi.stubGlobal("document", { getElementById: () => null });
 vi.stubGlobal("window", new EventTarget());
 vi.stubGlobal("requestAnimationFrame", (callback: () => void) => setTimeout(callback));
 
-const { showChannelVisuals, showChannelPropertyColorVisuals, isRenderingChannels } = await import("./State");
+const { showChannelVisuals, showChannelPropertyColorVisuals, colorShownChannels, uncolorShownChannels, shownChannelProperties, isRenderingChannels } = await import("./State");
 const { listen } = await import("./CommonUtils/Events");
 const { LastVisibleChannels } = await import("../Cache");
 
@@ -146,6 +146,98 @@ describe("channel visual operations", () => {
             showChannelPropertyColorVisuals(c, { property: "Hydropathy", minMax: false }, true));
         expect(plugin.coloredWith).toEqual(["Hydropathy", "Charge", "Hydropathy"]);
         expect(c.__coloring).toEqual({ property: "Hydropathy", minMax: false });
+    });
+
+    it("colours the channels shown one after another, leaving hidden ones", async () => {
+        const [a, b, hidden] = [colorable(), colorable(), colorable()];
+        await settle(showChannelVisuals([a, b, hidden], true));
+        await showChannelVisuals([hidden], false);
+
+        const colouring = colorShownChannels({ property: "Charge", minMax: true });
+        let mostAtOnce = 0, done = false;
+        colouring.finally(() => { done = true; });
+        while (!done) {
+            await new Promise(r => setTimeout(r, 0));
+            mostAtOnce = Math.max(mostAtOnce, plugin.pending.length);
+            plugin.pending.shift()?.resolve();
+        }
+        expect(await colouring).toEqual([]);
+        expect(mostAtOnce).toBe(1);
+        expect([a, b].map(c => c.__coloring)).toEqual([{ property: "Charge", minMax: true }, { property: "Charge", minMax: true }]);
+        expect(hidden.__layerColored).toBe(false);
+    });
+
+    it("colours the other channels shown when one fails, and says which", async () => {
+        const [a, b] = [colorable(), colorable()];
+        await settle(showChannelVisuals([a, b], true));
+        const colouring = colorShownChannels({ property: "Charge", minMax: false });
+        let first = true, done = false;
+        colouring.finally(() => { done = true; });
+        while (!done) {
+            await new Promise(r => setTimeout(r, 0));
+            const next = plugin.pending.shift();
+            if (next && first) { first = false; next.reject(new Error("no mesh")); } else next?.resolve();
+        }
+        expect(await colouring).toEqual([a]);
+        expect([a.__layerColored, b.__layerColored]).toEqual([false, true]);
+    });
+
+    it("leaves hidden a channel hidden while the channels are coloured all", async () => {
+        const [a, b] = [colorable(), colorable()];
+        await settle(showChannelVisuals([a, b], true));
+        const colouring = colorShownChannels({ property: "Charge", minMax: false });
+        while (plugin.pending.length === 0) await new Promise(r => setTimeout(r, 0));
+
+        // a's coloured surface is being computed when b is hidden
+        await showChannelVisuals([b], false);
+        await settle(colouring);
+        expect(await colouring).toEqual([]);
+        expect(a.__layerColored).toBe(true);
+        expect([b.__isVisible, b.__layerColored, plugin.rendered.has(b.__ref)]).toEqual([false, false, false]);
+    });
+
+    it("shows the other coloured channels plain when one fails, and says which", async () => {
+        const [a, b] = [colorable(), colorable()];
+        await settle(showChannelVisuals([a, b], true));
+        await settle(...[a, b].map(c => showChannelPropertyColorVisuals(c, { property: "Charge", minMax: false }, true)));
+
+        const uncolouring = uncolorShownChannels();
+        let first = true, done = false;
+        uncolouring.finally(() => { done = true; });
+        while (!done) {
+            await new Promise(r => setTimeout(r, 0));
+            const next = plugin.pending.shift();
+            if (next && first) { first = false; next.reject(new Error("no mesh")); } else next?.resolve();
+        }
+        expect(await uncolouring).toEqual([a]);
+        expect([a.__layerColored, b.__layerColored]).toEqual([true, false]);
+    });
+
+    it("shows the coloured channels plain again, and only those", async () => {
+        const [colored, plain] = [colorable(), colorable()];
+        await settle(showChannelVisuals([colored, plain], true));
+        await settle(showChannelPropertyColorVisuals(colored, { property: "Charge", minMax: false }, true));
+        const plainRef = plain.__ref;
+
+        await settle(uncolorShownChannels());
+        expect(colored.__layerColored).toBe(false);
+        expect(plain.__ref).toBe(plainRef);
+    });
+
+    it("offers to colour the channels shown by the properties all of them have", async () => {
+        const layers = (properties: Record<string, number>, bRadius?: number) =>
+            ({ LayersInfo: [{ LayerGeometry: { StartDistance: 0, EndDistance: 1, MinBRadius: bRadius }, Properties: properties }] }) as any;
+        const [mole, channelsDB, hidden] = [channel(), channel(), channel()];
+        mole.Layers = layers({ Charge: 1, Hydropathy: 0.5, LogP: 0.2 }, 2.1);
+        channelsDB.Layers = layers({ Hydropathy: 1, Charge: -1 });
+        hidden.Layers = layers({ Polarity: 3 }, 1);
+
+        expect(shownChannelProperties()).toEqual([]);
+        await settle(showChannelVisuals([mole], true));
+        expect(shownChannelProperties()).toEqual(["Charge", "Hydropathy", "LogP", "BRadius"]);
+        await settle(showChannelVisuals([channelsDB, hidden], true));
+        await showChannelVisuals([hidden], false);
+        expect(shownChannelProperties()).toEqual(["Charge", "Hydropathy"]);
     });
 
     it("leaves a channel whose render failed hidden and showable", async () => {

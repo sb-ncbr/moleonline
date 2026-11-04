@@ -115,7 +115,12 @@ export function paletteSettings(property: ColoringProperty, range: { min: number
 // The coloring a channel can take: by hydropathy when its layers lack the property's values (ChannelsDB's channels have
 // no B-factor radii, logP, logD, logS or ionizable residues), as its profile shows it
 export function availableColoring(layers: { MinBRadius: number, Properties: Record<string, number> }[], coloring: PropertyColoring): PropertyColoring {
-    return layers.every(l => Number.isFinite(layerValue(l, coloring.property))) ? coloring : { ...coloring, property: "Hydropathy" };
+    return hasProperty(layers, coloring.property) ? coloring : { ...coloring, property: "Hydropathy" };
+}
+
+// Whether every layer has a value of the property
+export function hasProperty(layers: { MinBRadius: number, Properties: Record<string, number> }[], property: ColoringProperty): boolean {
+    return layers.every(l => Number.isFinite(layerValue(l, property)));
 }
 
 export function sameColoring(a: PropertyColoring | undefined, b: PropertyColoring): boolean {
