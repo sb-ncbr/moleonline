@@ -10,11 +10,11 @@ resources:
 # a release: the images of one commit on main, not latest
 images:
   - name: ghcr.io/sb-ncbr/moleonline-api
-    newTag: 1a5feeea400cc6051ea087ed712a2117dcd538db
+    newTag: c51d5baad9bf5f085a38e7794e465f98899c5758
   - name: ghcr.io/sb-ncbr/moleonline-worker
-    newTag: 1a5feeea400cc6051ea087ed712a2117dcd538db
+    newTag: c51d5baad9bf5f085a38e7794e465f98899c5758
   - name: ghcr.io/sb-ncbr/moleonline-web
-    newTag: 1a5feeea400cc6051ea087ed712a2117dcd538db
+    newTag: c51d5baad9bf5f085a38e7794e465f98899c5758
 replicas:
   - name: moleonline-worker  # MAX_RUNNING_PROGRAMMATIC (the patch below) is about half of them
     count: 4
