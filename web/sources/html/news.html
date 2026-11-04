@@ -41,23 +41,41 @@
     <ul class="list-group">
         <li class="list-group-item list-group-item-action">
             <div class="d-flex w-100 justify-content-between">
-                <h5 class="mb-1"><b>New API and MCP server</b></h5>
-                <small>27. 10. 2026</small>
+                <h5 class="mb-1"><b>MOLEonline moved to new servers</b></h5>
+                <small>4. 11. 2026</small>
             </div>
             <div class="mb-1">
-                <span>MOLEonline can now be used from your own scripts and from AI assistants:</span>
+                <span>MOLEonline now runs on the Kubernetes cloud of CERIT-SC (e-INFRA CZ), with a new API built to be
+                    more reliable:</span>
                 <ul style="list-style-type: disc !important;">
-                    <li>a new REST API loads structures, computes tunnels and pores and downloads their results,
-                        see <a href="/api/docs" target="_blank">its documentation</a>,
-                    </li>
-                    <li>an MCP server lets AI assistants such as Claude compute and describe tunnels and pores for
-                        you. Add <code data-site-url="/mcp">https://moleonline.biodata.ceitec.cz/mcp</code> to your assistant as
-                        a custom connector (in Claude Code: <code>claude mcp add --transport http moleonline
-                        <span data-site-url="/mcp">https://moleonline.biodata.ceitec.cz/mcp</span></code>). The assistant gives you links to its results
-                        in MOLEonline, and you can paste a link to your own computation to ask about it.
-                    </li>
+                    <li>when all servers are busy, computations wait in a queue instead of being refused, and the
+                        queue is shared fairly, so many computations of one user do not hold up the others,</li>
+                    <li>each computation runs on a server of its own with time and memory limits, so a large
+                        structure does not slow down the website or other computations,</li>
+                    <li>waiting computations are kept when the servers restart,</li>
+                    <li>your own scripts can use the API directly, see <a href="/api/docs" target="_blank">its
+                        documentation</a>.</li>
                 </ul>
+                <p class="mb-1"><b>Computations made before the move</b> stay on the previous servers. Your links to
+                    them keep working: they open the computation in the
+                    <a href="https://moleonline-legacy.biodata.ceitec.cz" target="_blank">archive of the previous
+                    version</a>, where you can view and download its results, but not compute further. To continue
+                    such a computation here, export its parameters in the archive (<i>Export</i> in its list of
+                    submissions), start a new computation with the same structure and load them (<i>Load
+                    params</i>).</p>
             </div>
+        </li>
+        <li class="list-group-item list-group-item-action">
+            <div class="d-flex w-100 justify-content-between">
+                <h5 class="mb-1"><b>MCP server for AI assistants</b></h5>
+                <small>4. 11. 2026</small>
+            </div>
+            <p class="mb-1">AI assistants such as Claude can now compute and describe tunnels and pores for you through
+                MOLEonline's MCP server. Add <code data-site-url="/mcp">https://moleonline.biodata.ceitec.cz/mcp</code>
+                to your assistant as a custom connector (in Claude Code: <code>claude mcp add --transport http
+                moleonline <span data-site-url="/mcp">https://moleonline.biodata.ceitec.cz/mcp</span></code>). The
+                assistant gives you links to its results in MOLEonline, and you can paste a link to your own
+                computation to ask about it.</p>
         </li>
         <li class="list-group-item list-group-item-action">
             <div class="d-flex w-100 justify-content-between">
