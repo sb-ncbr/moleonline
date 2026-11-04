@@ -6,6 +6,8 @@ const plugin = vi.hoisted(() => ({
     pending: [] as { resolve: () => void, reject: (e: unknown) => void }[],
     rendered: new Set<string>(),
     recolored: [] as string[],
+    coloredWith: [] as string[], // the property of each property colour render and recolour, in order
+    holdRecolors: false, // a recolour then resolves when the test says so, as a render
     nextRef: 0,
 }));
 
@@ -17,13 +19,21 @@ vi.mock("./Context", () => {
             reject,
         });
     });
+    const renderColored = (_: unknown, coloring: { property: string }) => {
+        plugin.coloredWith.push(coloring.property);
+        return render();
+    };
     // a rendered visual is coloured again in place
-    const recolor = async (ref: string) => {
+    const recolor = async (ref: string, coloring: { property: string }) => {
         if (!plugin.rendered.has(ref)) return false;
+        plugin.coloredWith.push(coloring.property);
+        if (plugin.holdRecolors) {
+            await new Promise<void>((resolve, reject) => plugin.pending.push({ resolve, reject }));
+        }
         plugin.recolored.push(ref);
         return true;
     };
-    return { Context: { getInstance: () => ({ plugin: { state: { data: {} } }, renderTunnel: render, renderPropertyColorTunnel: render, recolorPropertyColorTunnel: recolor }) } };
+    return { Context: { getInstance: () => ({ plugin: { state: { data: {} } }, renderTunnel: render, renderPropertyColorTunnel: renderColored, recolorPropertyColorTunnel: recolor }) } };
 });
 
 vi.mock("molstar/lib/mol-plugin/commands", () => ({
@@ -38,9 +48,17 @@ vi.stubGlobal("requestAnimationFrame", (callback: () => void) => setTimeout(call
 
 const { showChannelVisuals, showChannelPropertyColorVisuals, isRenderingChannels } = await import("./State");
 const { listen } = await import("./CommonUtils/Events");
+const { LastVisibleChannels } = await import("../Cache");
 
 type Channel = Tunnel & TunnelMetaInfo;
-const channel = () => ({ Id: "c1", __color: 0 } as unknown as Channel);
+let channelIds = 0;
+const channel = () => ({ Id: `c${++channelIds}`, __color: 0, Layers: { LayersInfo: [] } } as unknown as Channel);
+// a channel whose layers have the properties the tests colour by
+const colorable = () => {
+    const c = channel();
+    c.Layers = { LayersInfo: [{ LayerGeometry: { StartDistance: 0, EndDistance: 1, MinBRadius: 1 }, Properties: { Hydropathy: 1, Charge: 0 } }] } as any;
+    return c;
+};
 
 // resolves each render once it is requested, until the operations finish
 async function settle(...operations: Promise<unknown>[]) {
@@ -60,7 +78,10 @@ describe("channel visual operations", () => {
         plugin.pending = [];
         plugin.rendered.clear();
         plugin.recolored = [];
+        plugin.coloredWith = [];
+        plugin.holdRecolors = false;
         plugin.nextRef = 0;
+        LastVisibleChannels.clear();
     });
 
     it("renders a channel shown twice at once only once", async () => {
@@ -81,15 +102,50 @@ describe("channel visual operations", () => {
     });
 
     it("colours a coloured channel again without rendering it again", async () => {
-        const c = channel();
+        const c = colorable();
         await settle(showChannelVisuals([c], true));
-        await settle(showChannelPropertyColorVisuals(c, {} as any, true));
+        await settle(showChannelPropertyColorVisuals(c, { property: "Hydropathy", minMax: false }, true));
         const coloured = c.__ref;
 
-        await showChannelPropertyColorVisuals(c, {} as any, true);
+        await showChannelPropertyColorVisuals(c, { property: "Charge", minMax: false }, true);
         expect(c.__ref).toBe(coloured);
         expect(plugin.recolored).toEqual([coloured]);
         expect([...plugin.rendered]).toEqual([coloured]);
+    });
+
+    it("remembers what a channel is coloured by, hydropathy for a property it lacks", async () => {
+        const c = channel();
+        c.Layers = { LayersInfo: [{ LayerGeometry: { StartDistance: 0, EndDistance: 1, MinBRadius: undefined }, Properties: { Hydropathy: 1 } }] } as any;
+        await settle(showChannelVisuals([c], true));
+        await settle(showChannelPropertyColorVisuals(c, { property: "Charge", minMax: true }, true));
+        expect(c.__coloring).toEqual({ property: "Hydropathy", minMax: true });
+
+        c.Layers.LayersInfo[0].Properties.Charge = 2;
+        await showChannelPropertyColorVisuals(c, { property: "Charge", minMax: false }, true);
+        expect(c.__coloring).toEqual({ property: "Charge", minMax: false });
+        expect(plugin.recolored).toEqual([c.__ref]);
+        expect(plugin.coloredWith).toEqual(["Hydropathy", "Charge"]);
+    });
+
+    it("leaves a channel coloured so already as it is", async () => {
+        const c = colorable();
+        await settle(showChannelVisuals([c], true));
+        await settle(showChannelPropertyColorVisuals(c, { property: "Hydropathy", minMax: false }, true));
+        await showChannelPropertyColorVisuals(c, { property: "Hydropathy", minMax: false }, true);
+        expect(plugin.coloredWith).toEqual(["Hydropathy"]);
+    });
+
+    it("ends with the coloring asked for last when it goes back before an earlier one ends", async () => {
+        const c = colorable();
+        await settle(showChannelVisuals([c], true));
+        await settle(showChannelPropertyColorVisuals(c, { property: "Hydropathy", minMax: false }, true));
+        plugin.holdRecolors = true;
+
+        // Charge is still being applied when Hydropathy is asked for again
+        await settle(showChannelPropertyColorVisuals(c, { property: "Charge", minMax: false }, true),
+            showChannelPropertyColorVisuals(c, { property: "Hydropathy", minMax: false }, true));
+        expect(plugin.coloredWith).toEqual(["Hydropathy", "Charge", "Hydropathy"]);
+        expect(c.__coloring).toEqual({ property: "Hydropathy", minMax: false });
     });
 
     it("leaves a channel whose render failed hidden and showable", async () => {

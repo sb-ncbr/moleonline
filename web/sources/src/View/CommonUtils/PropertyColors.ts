@@ -112,6 +112,16 @@ export function paletteSettings(property: ColoringProperty, range: { min: number
     };
 }
 
+// The coloring a channel can take: by hydropathy when its layers lack the property's values (ChannelsDB's channels have
+// no B-factor radii, logP, logD, logS or ionizable residues), as its profile shows it
+export function availableColoring(layers: { MinBRadius: number, Properties: Record<string, number> }[], coloring: PropertyColoring): PropertyColoring {
+    return layers.every(l => Number.isFinite(layerValue(l, coloring.property))) ? coloring : { ...coloring, property: "Hydropathy" };
+}
+
+export function sameColoring(a: PropertyColoring | undefined, b: PropertyColoring): boolean {
+    return a !== undefined && a.property === b.property && a.minMax === b.minMax;
+}
+
 // The colour at value, linearly between minColor at min and maxColor at max
 function interpolate(min: number, minColor: RGBColor, max: number, maxColor: RGBColor, value: number): RGBColor {
     const t = (value - min) / (max - min);

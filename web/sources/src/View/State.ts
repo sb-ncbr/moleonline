@@ -18,7 +18,8 @@ import { PluginCommands } from "molstar/lib/mol-plugin/commands";
 import { ColorGenerator } from "molstar/lib/extensions/meshes/mesh-utils";
 import { Shape } from "molstar/lib/mol-model/shape";
 import { Colors, Enum } from "../StaticData";
-import { PropertyColoring } from "./CommonUtils/PropertyColors";
+import { PropertyColoring, sameColoring } from "./CommonUtils/PropertyColors";
+import { channelColoring } from "./VizualizerMol/color-tunnels/property-color";
 import { LayerColors } from "./CommonUtils/LayerColors";
 import { TwoDProtsBridge } from "./CommonUtils/TwoDProtsBridge";
 import { TunnelsId } from "./CommonUtils/TunnelsId";
@@ -642,16 +643,25 @@ async function updateChannelPropertyColorVisual(channel: Tunnel & TunnelMetaInfo
                 channel.__channelsDB = true;
             }
 
+            // by hydropathy when the channel lacks the property; the channel keeps what it is coloured by
+            const shown = channelColoring(channel.Layers.LayersInfo, coloring);
+            // already coloured so by the operations before this one, which all ended
+            if (channel.__layerColored && channel.__isVisible && sameColoring(channel.__coloring, shown)) return;
+
             // a coloured channel only takes the new colours: its surface does not depend on the property
-            if (channel.__layerColored && channel.__isVisible && await context.recolorPropertyColorTunnel(channel.__ref, coloring)) return;
+            if (channel.__layerColored && channel.__isVisible && await context.recolorPropertyColorTunnel(channel.__ref, shown)) {
+                channel.__coloring = shown;
+                return;
+            }
 
             // the channel keeps its old visual and state until the new visual is rendered
             const previousRef = channel.__ref;
-            const [loci, ref] = await renderChannel(() => context.renderPropertyColorTunnel(channel, coloring));
+            const [loci, ref] = await renderChannel(() => context.renderPropertyColorTunnel(channel, shown));
             channel.__ref = ref;
             channel.__loci = loci as Shape.Loci;
             channel.__isVisible = true;
             channel.__layerColored = true;
+            channel.__coloring = shown;
 
             if (forceRepaint !== void 0 && forceRepaint) {
                 await PluginCommands.State.RemoveObject(context.plugin, { state: context.plugin.state.data, ref: previousRef });

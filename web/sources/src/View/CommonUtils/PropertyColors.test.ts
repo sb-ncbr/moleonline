@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Color } from 'molstar/lib/mol-util/color';
-import { channelGradient, colorAt, ColoringProperty, cssColor, gradientStops, layerValue, paletteColor, paletteSettings, PALETTES } from './PropertyColors';
+import { availableColoring, channelGradient, colorAt, ColoringProperty, cssColor, gradientStops, layerValue, paletteColor, paletteSettings, PALETTES } from './PropertyColors';
 import { DefaultColor, gradientColors } from '../VizualizerMol/color-tunnels/property-color';
 import { LayersInfo } from '../../DataInterface';
 import { Tunnel } from '../LayerVizualizer/Backend';
@@ -71,6 +71,21 @@ describe('colorAt', () => {
     });
 });
 
+describe('availableColoring', () => {
+    const mole = { MinBRadius: 2.6, Properties: { Hydropathy: 1, LogP: 0.3 } };
+    const channelsDB = { MinBRadius: undefined as unknown as number, Properties: { Hydropathy: 1 } };
+
+    it('keeps a property all layers have', () => {
+        expect(availableColoring([mole, mole], { property: 'LogP', minMax: true })).toEqual({ property: 'LogP', minMax: true });
+        expect(availableColoring([mole], { property: 'BRadius', minMax: false }).property).toBe('BRadius');
+    });
+
+    it('gives way to hydropathy, keeping the bounds, for a property a layer lacks', () => {
+        expect(availableColoring([mole, channelsDB], { property: 'LogP', minMax: true })).toEqual({ property: 'Hydropathy', minMax: true });
+        expect(availableColoring([channelsDB], { property: 'BRadius', minMax: false }).property).toBe('Hydropathy');
+    });
+});
+
 describe('gradientColors (3D)', () => {
     const info = (start: number, end: number, hydropathy: number, bRadius: number) => ({
         LayerGeometry: { StartDistance: start, EndDistance: end, MinBRadius: bRadius },
@@ -96,6 +111,12 @@ describe('gradientColors (3D)', () => {
         expect(colors[0]).toBe(Color.fromRgb(PALETTES.BRadius.min.r, PALETTES.BRadius.min.g, PALETTES.BRadius.min.b));
         expect(colors[1]).toBe(Color.fromRgb(PALETTES.BRadius.max.r, PALETTES.BRadius.max.g, PALETTES.BRadius.max.b));
         expect(layerValue({ MinBRadius: 3, Properties: {} }, 'BRadius')).toBe(3);
+    });
+
+    it('colours a channel lacking the property by hydropathy', () => {
+        const noLogP = layers.map(l => ({ ...l, Properties: { Hydropathy: l.Properties.Hydropathy } }) as unknown as LayersInfo);
+        expect(gradientColors([0, 5, 10], noLogP, { property: 'LogP', minMax: true }))
+            .toEqual(gradientColors([0, 5, 10], noLogP, { property: 'Hydropathy', minMax: true }));
     });
 
     it('is grey without layers', () => {

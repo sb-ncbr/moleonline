@@ -1,7 +1,7 @@
 import { Color } from 'molstar/lib/mol-util/color';
 import { ColorPaletteFunctionSettings } from './data-model';
 import { LayersInfo } from '../../../DataInterface';
-import { channelGradient, colorAt, layerValue, PropertyColoring } from '../../CommonUtils/PropertyColors';
+import { availableColoring, channelGradient, colorAt, layerValue, PropertyColoring } from '../../CommonUtils/PropertyColors';
 
 
 export const DefaultColor = Color(0xFAFAFA);
@@ -254,16 +254,23 @@ export function colorTunnel(property: Property, groupId: number,
     return DefaultColor;
 }
 
+// The coloring a channel's layers can take, see availableColoring
+export function channelColoring(layers: LayersInfo[], coloring: PropertyColoring): PropertyColoring {
+    return availableColoring(layers.map(l => ({ MinBRadius: l.LayerGeometry.MinBRadius, Properties: l.Properties as unknown as Record<string, number> })), coloring);
+}
+
 // The colour at each distance along the channel: the 2D profile's gradient of the channel by the coloring
 export function gradientColors(distances: number[], layers: LayersInfo[], coloring: PropertyColoring): Color[] {
     if (layers.length === 0) {
         return distances.map(() => DefaultColor);
     }
-    const stops = channelGradient(layers.map(l => ({
+    const values = layers.map(l => ({ MinBRadius: l.LayerGeometry.MinBRadius, Properties: l.Properties as unknown as Record<string, number> }));
+    const available = availableColoring(values, coloring);
+    const stops = channelGradient(layers.map((l, i) => ({
         start: l.LayerGeometry.StartDistance,
         end: l.LayerGeometry.EndDistance,
-        value: layerValue({ MinBRadius: l.LayerGeometry.MinBRadius, Properties: l.Properties as unknown as Record<string, number> }, coloring.property),
-    })), coloring);
+        value: layerValue(values[i], available.property),
+    })), available);
     const totalLength = layers[layers.length - 1].LayerGeometry.EndDistance - layers[0].LayerGeometry.StartDistance;
     return distances.map(distance => {
         const { r, g, b } = colorAt(stops, totalLength > 0 ? distance / totalLength : 0);

@@ -12,7 +12,7 @@ import { QueryParam } from "../../VizualizerMol/helpers";
 import { Context } from "../../Context";
 import { LayerColors } from "../../CommonUtils/LayerColors";
 import { showChannelPropertyColorVisuals, showChannelVisuals } from "../../State";
-import { ColoringProperty } from "../../CommonUtils/PropertyColors";
+import { availableColoring, ColoringProperty } from "../../CommonUtils/PropertyColors";
 import { ShapeGroup } from "molstar/lib/mol-model/shape";
 import { OrderedSet } from 'molstar/lib/mol-data/int'
 import { EmptyLoci, Loci } from "molstar/lib/mol-model/loci";
@@ -102,18 +102,31 @@ export class LayerVizualizer extends React.Component<{ vizualizer: Vizualizer },
                         vizualizer.rebindDOMRefs();
                         let coloringPropertyKey = this.state.coloringPropertyKey;
                         let customColoringPropertyKey = this.state.customColoringPropertyKey;
+                        let colorBoundsMode = this.state.colorBoundsMode;
                         let radiusPropertyKey = this.state.radiusPropertyKey;
+                        // a coloured channel shows what it is coloured by
+                        const coloring = this.state.channel?.__layerColored ? this.state.channel.__coloring : undefined;
+                        if (coloring) {
+                            coloringPropertyKey = coloring.property;
+                            colorBoundsMode = coloring.minMax ? "Min/max" : "Absolute";
+                            vizualizer.setColoringPropertyKey(coloringPropertyKey);
+                            vizualizer.setColorBoundsMode(colorBoundsMode);
+                            LayerColors.setColoring(coloring);
+                        }
                         let customRadiusPropertyKey = this.state.customRadiusPropertyKey;
+                        // a property the channel's layers lack (ChannelsDB's channels have no B-factor radii, logP,
+                        // logD, logS or ionizable residues) gives way to hydropathy, in 3D as well
+                        const lacks = (key: string) => availableColoring(layers, { property: key as ColoringProperty, minMax: false }).property !== key;
+                        if (lacks(coloringPropertyKey)) {
+                            vizualizer.setColoringPropertyKey("Hydropathy")
+                            coloringPropertyKey = "Hydropathy";
+                            LayerColors.setColoring({ ...LayerColors.getColoring(), property: "Hydropathy" });
+                        }
+                        if (lacks(customColoringPropertyKey)) {
+                            vizualizer.setCustomColoringPropertyKey("Hydropathy");
+                            customColoringPropertyKey = "Hydropathy";
+                        }
                         if (this.state.channel && this.state.channel.__channelsDB) {
-                            if (this.state.coloringPropertyKey === "BRadius") {
-                                vizualizer.setColoringPropertyKey("Hydropathy")
-                                coloringPropertyKey = "Hydropathy";
-                                LayerColors.setColoring({ ...LayerColors.getColoring(), property: "Hydropathy" });
-                            }
-                            if (this.state.customColoringPropertyKey === "BRadius") {
-                                vizualizer.setCustomColoringPropertyKey("Hydropathy");
-                                customColoringPropertyKey = "Hydropathy";
-                            }
                             if (this.state.radiusPropertyKey === "MinBRadius") {
                                 vizualizer.setRadiusPropertyKey("MinRadius");
                                 radiusPropertyKey = "MinRadius";
@@ -131,6 +144,7 @@ export class LayerVizualizer extends React.Component<{ vizualizer: Vizualizer },
                             instanceId: vizualizer.getPublicInstanceIdx(),
                             coloringPropertyKey: coloringPropertyKey,
                             customColoringPropertyKey: customColoringPropertyKey,
+                            colorBoundsMode: colorBoundsMode,
                             radiusPropertyKey: radiusPropertyKey,
                             customRadiusPropertyKey: customRadiusPropertyKey,
                         });
@@ -471,6 +485,12 @@ class PropertyColorTunnel extends React.Component<{ state: State }, { context: C
         return loci;
     }
 
+    // the profile's property or bounds changed: a coloured channel takes them (a channel coloured so already is left as it
+    // is, see showChannelPropertyColorVisuals)
+    onColoringChanged = () => {
+        if (this.state.checked) this.toggle(true);
+    };
+
     // a channel hidden loses its colours; another one hidden leaves this one as it is
     onChannelRemoved = (ref: any) => {
         const channel = this.channel;
@@ -484,10 +504,6 @@ class PropertyColorTunnel extends React.Component<{ state: State }, { context: C
         if (channel && channel.__ref === ref) {
             this.setState({ disabled: false });
         }
-    };
-
-    onColoringChanged = () => {
-        if (this.state.checked) this.toggle(true);
     };
 
     onLayerIndexOver = (layerIndex: number) => {
@@ -518,8 +534,8 @@ class PropertyColorTunnel extends React.Component<{ state: State }, { context: C
     componentDidMount() {
         this.unsubscribe.push(
             LayerColors.attachOnChannelRemoved(this.onChannelRemoved.bind(this)),
-            LayerColors.attachOnChannelAdd(this.onChannelAdd.bind(this)),
             LayerColors.attachOnColoringChanged(this.onColoringChanged.bind(this)),
+            LayerColors.attachOnChannelAdd(this.onChannelAdd.bind(this)),
             LayerColors.attachLayerIndexOver(this.onLayerIndexOver.bind(this)),
             LayerColors.attachLayerIndexSelect(this.onLayerIndexSelect.bind(this)),
         );

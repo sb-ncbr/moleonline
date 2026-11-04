@@ -1,3 +1,4 @@
+import type { PropertyColoring } from "./View/CommonUtils/PropertyColors";
 import { Shape } from "molstar/lib/mol-model/shape"
 import { Color } from "molstar/lib/mol-util/color"
 
@@ -92,6 +93,7 @@ export interface TunnelMetaInfo extends Tunnel {
     __channelsDB: boolean,
     __submissionId: string,
     __layerColored: boolean,
+    __coloring?: PropertyColoring, // the property coloring applied last; meaningful only while __layerColored
 };
 
 export interface ChannelsDBChannels {
