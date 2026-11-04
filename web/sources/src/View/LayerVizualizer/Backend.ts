@@ -1,5 +1,4 @@
 import { invertHexContrastGrayscale, RGBColor, rgbToHex, Uint8ClampedArrayToRGB } from "./Colors";
-import { LayerColors } from "../CommonUtils/LayerColors";
 
 type ColorPaletteFunction = (val: number, settings: ColorPaletteFunctionSettings) => string;
 type Rectangle = { x: number, y: number, width: number, height: number };
@@ -628,38 +627,6 @@ export class Tunnel extends ContextAwareObject {
         }
 
         return this.layersData;
-    }
-
-    public createOffscreenGradientCanvas() {
-        if (!this.layersData) {
-            LayerColors.setCanvas(undefined);
-            return;
-        }
-    
-        let { gradient, path } = this.prepareLayersData();
-    
-        const startX = path[0].x;
-        let endX = path[path.length - 1].x;
-
-        const width = Math.abs(endX - startX);
-        const height = 10;
-        const offsetX = path[0].x;
-
-        const offscreenCanvas = document.createElement('canvas');
-        offscreenCanvas.width = width;
-        offscreenCanvas.height = height;
-        const ctx = offscreenCanvas.getContext('2d', { willReadFrequently: true }); // https://stackoverflow.com/questions/74101155/chrome-warning-willreadfrequently-attribute-set-to-true
-        if (!ctx) {
-            throw new Error("Failed to get 2D context.");
-        }
-        ctx.translate(-offsetX, 0);
-        ctx.fillStyle = gradient;
-        ctx.fillRect(offsetX, 0, width, height);
-
-        offscreenCanvas.style.border = "1px solid black";
-        offscreenCanvas.style.margin = "10px";
-
-        LayerColors.setCanvas(offscreenCanvas);
     }
 
     private renderAllLayers() {

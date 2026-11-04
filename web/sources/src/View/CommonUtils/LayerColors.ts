@@ -1,6 +1,7 @@
 import { OrderedSet } from "molstar/lib/mol-data/int";
 import { Context } from "../Context";
-import { ColorBound, Property } from "../VizualizerMol/color-tunnels/property-color";
+import { Property } from "../VizualizerMol/color-tunnels/property-color";
+import { PropertyColoring } from "./PropertyColors";
 import { Representation } from "molstar/lib/mol-repr/representation";
 import { Loci } from "molstar/lib/mol-model/loci";
 import { Tunnel, TunnelMetaInfo } from "../../DataInterface";
@@ -10,11 +11,11 @@ import { Handlers } from "./Handlers";
 export class LayerColors {
     private static currentSelectedLayer: number = -1;
     private static selectChannelLiningResidues: boolean = false;
-    private static currentCanvas: HTMLCanvasElement | undefined = undefined;
+    // what channels coloured in 3D are coloured by, the 2D profile's property and bounds
+    private static coloring: PropertyColoring = { property: "Hydropathy", minMax: false };
 
     // attach… returns a function that detaches the handler again
-    private static onColorPropertyChanged = new Handlers<[Property]>();
-    private static onColorBoundsChanged = new Handlers<[ColorBound]>();
+    private static onColoringChanged = new Handlers<[PropertyColoring]>();
     private static onLayerIndexOver = new Handlers<[number]>();
     private static onLayerIndexOverObject = new Handlers<[number, string]>();
     private static onLayerIndexSelect = new Handlers<[number]>();
@@ -30,20 +31,20 @@ export class LayerColors {
         return this.selectChannelLiningResidues;
     }
 
-    public static setCanvas(value: HTMLCanvasElement | undefined) {
-        this.currentCanvas = value;
+    public static getColoring(): PropertyColoring {
+        return this.coloring;
     }
 
-    public static getCanvas() {
-        return this.currentCanvas;
-    }
-
-    public static attachOnColorPropertyChagned(handler: (property: Property) => void) { return this.onColorPropertyChanged.attach(handler); }
-    public static invokeOnColorPropertyChagned(property: Property | undefined) {
-        if (property) {
-            this.onColorPropertyChanged.invoke(property);
+    // Set where the 2D profile's property or bounds change; the handlers recolour the channels
+    public static setColoring(coloring: PropertyColoring) {
+        if (coloring.property === this.coloring.property && coloring.minMax === this.coloring.minMax) {
+            return;
         }
+        this.coloring = { ...coloring };
+        this.onColoringChanged.invoke(this.coloring);
     }
+
+    public static attachOnColoringChanged(handler: (coloring: PropertyColoring) => void) { return this.onColoringChanged.attach(handler); }
 
     public static attachLayerIndexOver(handler: (layerIndex: number) => void) { return this.onLayerIndexOver.attach(handler); }
     public static invokeLayerIndexOver(layerIndex: number) { this.onLayerIndexOver.invoke(layerIndex); }
@@ -62,9 +63,6 @@ export class LayerColors {
         this.currentSelectedLayer = layerIndex;
         this.onLayerIndexSelectObject.invoke(layerIndex, loci);
     }
-
-    public static attachOnColorBoundsChanged(handler: (bounds: ColorBound) => void) { return this.onColorBoundsChanged.attach(handler); }
-    public static invokeOnColorBoundsChanged(bounds: ColorBound) { this.onColorBoundsChanged.invoke(bounds); }
 
     public static attachOnChannelRemoved(handler: (ref: string) => void) { return this.onChannelRemoved.attach(handler); }
     public static invokeOnChannelRemoved(ref: string) { this.onChannelRemoved.invoke(ref); }

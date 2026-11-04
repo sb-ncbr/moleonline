@@ -12,7 +12,7 @@ import { QueryParam } from "../../VizualizerMol/helpers";
 import { Context } from "../../Context";
 import { LayerColors } from "../../CommonUtils/LayerColors";
 import { showChannelPropertyColorVisuals, showChannelVisuals } from "../../State";
-import { ColorBound, Property } from "../../VizualizerMol/color-tunnels/property-color";
+import { ColoringProperty } from "../../CommonUtils/PropertyColors";
 import { ShapeGroup } from "molstar/lib/mol-model/shape";
 import { OrderedSet } from 'molstar/lib/mol-data/int'
 import { EmptyLoci, Loci } from "molstar/lib/mol-model/loci";
@@ -72,14 +72,14 @@ export class LayerVizualizer extends React.Component<{ vizualizer: Vizualizer },
     };
 
     private unsubscribe: (() => void)[] = [];
-    // cancel the deferred display of the last selected channel's layers and of the channel itself
+    // cancel the deferred display of the last selected channel's layers
     private cancelPendingLayers = () => { };
-    private cancelPendingChannel = () => { };
 
     componentDidMount() {
         let vizualizer = this.props.vizualizer;
 
         vizualizer.setColorBoundsMode(this.state.colorBoundsMode);
+        LayerColors.setColoring({ property: vizualizer.getColoringPropertyKey() as ColoringProperty, minMax: this.state.colorBoundsMode === "Min/max" });
 
         this.setState({
             instanceId: vizualizer.getPublicInstanceIdx(),
@@ -108,6 +108,7 @@ export class LayerVizualizer extends React.Component<{ vizualizer: Vizualizer },
                             if (this.state.coloringPropertyKey === "BRadius") {
                                 vizualizer.setColoringPropertyKey("Hydropathy")
                                 coloringPropertyKey = "Hydropathy";
+                                LayerColors.setColoring({ ...LayerColors.getColoring(), property: "Hydropathy" });
                             }
                             if (this.state.customColoringPropertyKey === "BRadius") {
                                 vizualizer.setCustomColoringPropertyKey("Hydropathy");
@@ -123,7 +124,6 @@ export class LayerVizualizer extends React.Component<{ vizualizer: Vizualizer },
                             }
                         }
                         vizualizer.vizualize();
-                        vizualizer.renderOffCanvas();
                         this.setState({
                             data: layers,
                             hasData: true,
@@ -139,19 +139,13 @@ export class LayerVizualizer extends React.Component<{ vizualizer: Vizualizer },
             }, 50);
             this.cancelPendingLayers = () => window.clearTimeout(timer);
         }));
+        // the profile's channel at once, so that its controls act on it while its layers are still drawn
         this.unsubscribe.push(SelectionHelper.attachOnChannelSelectHandler2((channel) => {
-            this.cancelPendingChannel();
-            const timer = window.setTimeout(() => {
-                this.cancelPendingChannel = doAfterTabActivated("left-tabs", "1", () => {
-                    this.setState({ channel: channel });
-                });
-            }, 50);
-            this.cancelPendingChannel = () => window.clearTimeout(timer);
+            this.setState({ channel: channel });
         }));
         this.unsubscribe.push(SelectionHelper.attachOnChannelDeselectHandler(() => {
             // a channel selected just before is not shown anymore
             this.cancelPendingLayers();
-            this.cancelPendingChannel();
             this.setState({ data: [], hasData: false, isDOMReady: false, isLayerSelected: false, channel: undefined });
             setTimeout(function () {
                 emit('contentResize');
@@ -210,7 +204,6 @@ export class LayerVizualizer extends React.Component<{ vizualizer: Vizualizer },
         this.unsubscribe.forEach(u => u());
         this.unsubscribe = [];
         this.cancelPendingLayers();
-        this.cancelPendingChannel();
     }
 
     private repaint = () => {
@@ -283,11 +276,7 @@ class ColorMenuItem extends React.Component<State & { propertyName: string, isCu
             instance.setColoringPropertyKey(propertyName);
             instance.vizualize();
             this.props.app.setState({ coloringPropertyKey: propertyName });
-            instance.renderOffCanvas();
-            const p = LayerColors.toProperty(propertyName);
-            if (p) {
-                LayerColors.invokeOnColorPropertyChagned(p);
-            }
+            LayerColors.setColoring({ ...LayerColors.getColoring(), property: propertyName as ColoringProperty });
         }
     }
 
@@ -327,9 +316,7 @@ class ColorBoundsMenuItem extends React.Component<State & { mode: ColorBoundsMod
         const mode = this.props.mode;
         instance.setColorBoundsMode(mode);
         instance.vizualize();
-        // the 3D channel takes its colours from the gradient, so it is drawn before the channel is told
-        instance.renderOffCanvas();
-        LayerColors.invokeOnColorBoundsChanged(mode === 'Absolute' ? 'absolute' : 'minmax');
+        LayerColors.setColoring({ ...LayerColors.getColoring(), minMax: mode === "Min/max" });
         this.props.app.setState({ colorBoundsMode: mode });
     }
 
@@ -430,42 +417,48 @@ class RadiusSwitch extends React.Component<{ state: State, radiusProperty: Radiu
     }
 }
 
-class PropertyColorTunnel extends React.Component<{ state: State }, { property: Property, colorBounds: ColorBound, context: Context, checked: boolean, disabled: boolean, isProcessing: boolean }> {
+// Colours the profile's channel in 3D by the shared coloring, the profile's property and bounds
+class PropertyColorTunnel extends React.Component<{ state: State }, { context: Context, checked: boolean, disabled: boolean, isProcessing: boolean }> {
 
     state = {
-        property: 'hydropathy' as Property,
-        colorBounds: 'absolute' as ColorBound,
         context: Context.getInstance(),
-        checked: false,
+        checked: !!this.props.state.channel?.__layerColored,
         disabled: false,
         isProcessing: false,
     }
 
     private currentTaskId: number = 0;
 
-    async toggle(checked: boolean) {
-        if (this.props.state.channel) {
-            const channel = this.props.state.channel;
-            channel.__isBusy = true;
-            this.setState({ isProcessing: true });
-            const taskId = ++this.currentTaskId;
-            if (checked) {
-                this.forceUpdate(() => {
-                    showChannelPropertyColorVisuals(channel, { property: this.state.property, colorBounds: this.state.colorBounds }, true).then(() => {
-                        if (taskId !== this.currentTaskId) {
-                            return;
-                        }
-                        this.setState({ isProcessing: false });
-                        this.forceUpdate();
-                    }).catch(() => {this.setState({ isProcessing: false }); this.forceUpdate()});
-                })
-            } else {
-                showChannelVisuals([channel], true, true).then(() => {
-                    this.state.context.plugin.managers.interactivity.lociSelects.selectOnly({ loci: channel.__loci });
-                    this.setState({ isProcessing: false }); 
-                    this.forceUpdate();
-                }).catch(() => {this.setState({ isProcessing: false }); this.forceUpdate()});
+    private get channel() {
+        return this.props.state.channel;
+    }
+
+    componentDidUpdate(prevProps: { state: State }) {
+        if (prevProps.state.channel !== this.props.state.channel) {
+            this.setState({ checked: !!this.props.state.channel?.__layerColored, disabled: false });
+        }
+    }
+
+    toggle(checked: boolean) {
+        const channel = this.channel;
+        if (!channel) {
+            return;
+        }
+        channel.__isBusy = true;
+        this.setState({ isProcessing: true });
+        const taskId = ++this.currentTaskId;
+        const done = () => {
+            if (taskId === this.currentTaskId) {
+                this.setState({ isProcessing: false });
             }
+        };
+        if (checked) {
+            showChannelPropertyColorVisuals(channel, LayerColors.getColoring(), true).then(done, done);
+        } else {
+            showChannelVisuals([channel], true, true).then(() => {
+                this.state.context.plugin.managers.interactivity.lociSelects.selectOnly({ loci: channel.__loci });
+                done();
+            }, done);
         }
     }
 
@@ -478,36 +471,22 @@ class PropertyColorTunnel extends React.Component<{ state: State }, { property: 
         return loci;
     }
 
-    onChannelSelect = (channel: TunnelWithMetaData) => {
-        this.setState({
-            checked: channel.__layerColored,
-            disabled: false
-        });
-    };
-
+    // a channel hidden loses its colours; another one hidden leaves this one as it is
     onChannelRemoved = (ref: any) => {
-        const channel = this.props.state.channel;
+        const channel = this.channel;
         if (!channel || channel.__ref === ref) {
             this.setState({ checked: false, disabled: true });
-        } else {
-            this.setState({ checked: false });
         }
     };
 
     onChannelAdd = (ref: any) => {
-        const channel = this.props.state.channel;
+        const channel = this.channel;
         if (channel && channel.__ref === ref) {
             this.setState({ disabled: false });
         }
     };
 
-    onColorPropertyChanged = (property: any) => {
-        this.setState({ property });
-        if (this.state.checked) this.toggle(true);
-    };
-
-    onColorBoundsChanged = (colorBounds: any) => {
-        this.setState({ colorBounds });
+    onColoringChanged = () => {
         if (this.state.checked) this.toggle(true);
     };
 
@@ -538,11 +517,9 @@ class PropertyColorTunnel extends React.Component<{ state: State }, { property: 
 
     componentDidMount() {
         this.unsubscribe.push(
-            SelectionHelper.attachOnChannelSelectHandler2(this.onChannelSelect.bind(this)),
             LayerColors.attachOnChannelRemoved(this.onChannelRemoved.bind(this)),
             LayerColors.attachOnChannelAdd(this.onChannelAdd.bind(this)),
-            LayerColors.attachOnColorPropertyChagned(this.onColorPropertyChanged.bind(this)),
-            LayerColors.attachOnColorBoundsChanged(this.onColorBoundsChanged.bind(this)),
+            LayerColors.attachOnColoringChanged(this.onColoringChanged.bind(this)),
             LayerColors.attachLayerIndexOver(this.onLayerIndexOver.bind(this)),
             LayerColors.attachLayerIndexSelect(this.onLayerIndexSelect.bind(this)),
         );
@@ -567,7 +544,7 @@ class PropertyColorTunnel extends React.Component<{ state: State }, { property: 
                     : <input type='checkbox'
                         checked={this.state.checked}
                         onChange={() => {
-                            if (this.props.state.channel) {
+                            if (this.channel) {
                                 this.toggle(!this.state.checked);
                                 this.setState({ checked: !this.state.checked });
                             }

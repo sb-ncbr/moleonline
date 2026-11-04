@@ -14,6 +14,7 @@ import { TunnelPropertyColorShapeParams } from "./color-tunnels/data-model";
 import { ShapeRepresentation as ColorShapeRepresentation } from "./color-tunnels/shapeRepresentation";
 import { ShapeGroupColorTheme, ShapeGroupSizeTheme } from "./color-tunnels/colored-tunnel-theme";
 import { ShapeRepresentation } from "molstar/lib/mol-repr/shape/representation";
+import { PropertyColoring } from "../CommonUtils/PropertyColors";
 
 const Transform = StateTransformer.builderFactory("moleonline");
 
@@ -166,7 +167,7 @@ export const TunnelPropertyColorRepresentation3D = Transform({
     display: '3D Representation',
     from: PluginStateObject.Shape.Provider,
     to: PluginStateObject.Shape.Representation3D,
-    params: { ...BaseGeometry.Params, doubleSided: PD.Boolean(true, BaseGeometry.CustomQualityParamInfo), tag: PD.Value<string>("PropertyColorTunnel", { isHidden: true }), tunnel: PD.Value<Tunnel | null >(null, { isHidden: true}) }
+    params: { ...BaseGeometry.Params, doubleSided: PD.Boolean(true, BaseGeometry.CustomQualityParamInfo), tag: PD.Value<string>("PropertyColorTunnel", { isHidden: true }), tunnel: PD.Value<Tunnel | null >(null, { isHidden: true}), coloring: PD.Value<PropertyColoring>({ property: "Hydropathy", minMax: false }, { isHidden: true }) }
 })({
     apply({ a, params }) {
         return Task.create('MOLEonline Tunnel Shape Representation', async ctx => {
@@ -176,6 +177,7 @@ export const TunnelPropertyColorRepresentation3D = Transform({
                 color: ShapeGroupColorTheme({}, {
                     centreLine: interpolateTunnel(a.data.data.data.tunnel.data, a.data.data.params.samplingRate),
                     layers: a.data.data.params.layers,
+                    coloring: params.coloring,
                 }),
                 size: ShapeGroupSizeTheme({}, {})
             })

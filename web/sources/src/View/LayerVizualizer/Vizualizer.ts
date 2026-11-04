@@ -6,36 +6,10 @@ import { isActive } from "../CommonUtils/Tabs";
 import { ArrowHeadLine, Axis, ColorMixer, ColorPaletteFunctionSettings, ContextAwareObject, CurlyBrackets, FontSize, TextAlign, TextBox, Tunnel } from "./Backend";
 import { Paintable, Axis as AxisCompnent, Positionable } from "./Components";
 import { listen } from "../CommonUtils/Events";
+import { ColoringProperty, cssColor, paletteColor, PaletteSettings, paletteSettings, RGBColor, SCALES } from "../CommonUtils/PropertyColors";
 
-
-// The colour at value, linearly between minColor at min and maxColor at max
-function interpolate(min: number, minColor: RGBColor, max: number, maxColor: RGBColor, value: number): RGBColor {
-    const t = (value - min) / (max - min);
-    return {
-        r: minColor.r + (maxColor.r - minColor.r) * t,
-        g: minColor.g + (maxColor.g - minColor.g) * t,
-        b: minColor.b + (maxColor.b - minColor.b) * t,
-    };
-}
 
 export type DataURL = string;
-
-type PropertyKey = "Polarity" | "Mutability" | "Hydropathy" | "Hydrophobicity" | "Charge" | "NumNegatives" | "NumPositives" | "LogP" | "LogD" | "LogS" | "Ionizable" | "BRadius"
-
-export interface PropertiesColorCell {
-    Polarity: RGBColor,
-    Mutability: RGBColor,
-    Hydropathy: RGBColor,
-    Hydrophobicity: RGBColor,
-    Charge: RGBColor,
-    NumNegatives: RGBColor,
-    NumPositives: RGBColor,
-    LogP: RGBColor,
-    LogD: RGBColor,
-    LogS: RGBColor,
-    Ionizable: RGBColor,
-    BRadius: RGBColor
-}
 
 export interface LayersVizualizerSettings {
     coloringProperty?: String,
@@ -45,11 +19,7 @@ export interface LayersVizualizerSettings {
     customRadiusProperty?: RadiusProperty
 };
 
-export interface RGBColor {
-    r: number;
-    g: number;
-    b: number;
-};
+export type { RGBColor };
 
 interface TunnelInfo {
     bounds: {
@@ -78,22 +48,14 @@ export class Vizualizer {
     private coloringPropertyKey!: string;
     private customColoringPropertyKey!: string;
     private useColorMinMax!: boolean;
-    private absColorValueMax!: Map<string, number>;
-    private absColorValueMin!: Map<string, number>;
     private minColoringValue!: Map<string, number>;
     private maxColoringValue!: Map<string, number>;
-    private absCenterPositions!: Map<PropertyKey, number>;
     private skipMiddle!: boolean;
     private maxX!: number;
     private maxY!: number;
     private customMaxY!: number;
     private radiusPropertyKey!: RadiusProperty;
     private customRadiusPropertyKey!: RadiusProperty;
-
-    private minColor!: PropertiesColorCell;
-    private minColorMiddle!: PropertiesColorCell;
-    private maxColor!: PropertiesColorCell;
-    private maxColorMiddle!: PropertiesColorCell;
 
     private data!: LayerData[];
     private dataDirty: boolean;
@@ -140,13 +102,6 @@ export class Vizualizer {
 
         return this.__tunnels;
     }
-
-    public renderOffCanvas() {
-        if (this.__tunnels.default) 
-            this.__tunnels.default.tunnel.createOffscreenGradientCanvas();
-        else if (this.__tunnels.customizable)
-            this.__tunnels.customizable.tunnel.createOffscreenGradientCanvas();
-    }   
 
     public static ACTIVE_INSTANCES: Vizualizer[];
 
@@ -235,30 +190,6 @@ export class Vizualizer {
             this.useColorMinMax = settings.useColorMinMax.valueOf();
         }
 
-        // Colour scale of each property: minimum, centre and maximum
-        const scales: Record<PropertyKey, [number, number, number]> = {
-            Polarity: [0, 5, 52],
-            Mutability: [25, 75, 117],
-            Hydropathy: [-4.5, 0, 4.5],
-            Hydrophobicity: [-1.14, 0, 1.81],
-            Charge: [-5, 0, 5],
-            NumPositives: [0, 0, 5],
-            NumNegatives: [0, 0, 5],
-            LogP: [-1.03, 0.78, 2.59],
-            LogD: [-3, -0.205, 2.59],
-            LogS: [-2.48, 0.075, 2.63],
-            Ionizable: [0, 0, 5],
-            BRadius: [0, 3, 6],
-        };
-        this.absCenterPositions = new Map<PropertyKey, number>();
-        this.absColorValueMin = new Map<string, number>();
-        this.absColorValueMax = new Map<string, number>();
-        for (const [key, [min, center, max]] of Object.entries(scales) as [PropertyKey, [number, number, number]][]) {
-            this.absColorValueMin.set(key, min);
-            this.absCenterPositions.set(key, center);
-            this.absColorValueMax.set(key, max);
-        }
-
         this.radiusPropertyKey = "MinRadius";
         if (settings.radiusProperty != null) {
             this.radiusPropertyKey = settings.radiusProperty;
@@ -274,81 +205,6 @@ export class Vizualizer {
         }
     }
 
-    private configureColors() {
-        let maxYellow = { r: 251, g: 255, b: 7 };
-        let middleYellow = { r: 240, g: 248, b: 190 };
-        let maxBlue = { r: 0, g: 0, b: 255 };
-        let middleBlue = { r: 253, g: 253, b: 255 };
-        let maxRed = { r: 255, g: 0, b: 0 };
-        let middleRed = { r: 253, g: 253, b: 225 };
-        let maxWhite = { r: 255, g: 255, b: 255 };
-        let middleWhite = { r: 240, g: 240, b: 240 };
-        let maxPurple = { r: 107, g: 9, b: 107 };
-        let middlePurple = { r: 220, g: 188, b: 220 };
-        let middleBlack = { r: 183, g: 183, b: 183 };
-        let maxBlack = { r: 0, g: 0, b: 0 };
-
-        this.minColor = {
-            Hydropathy: maxBlue,
-            Hydrophobicity: maxBlue,
-            Mutability: maxBlue,
-            Polarity: maxYellow,
-            Charge: maxRed,
-            NumPositives: maxWhite,
-            NumNegatives: maxWhite,
-            LogP: maxBlue,
-            LogD: maxBlue,
-            LogS: maxYellow,
-            Ionizable: maxWhite,
-            BRadius: maxWhite
-        };
-
-        this.minColorMiddle = {
-            Hydropathy: middleBlue,
-            Hydrophobicity: middleBlue,
-            Mutability: middleBlue,
-            Polarity: middleYellow,
-            Charge: middleRed,
-            NumPositives: middleWhite,
-            NumNegatives: middleWhite,
-            LogP: middleBlue,
-            LogD: middleBlue,
-            LogS: middleYellow,
-            Ionizable: middleWhite,
-            BRadius: middleWhite
-        };
-
-        this.maxColorMiddle = {
-            Hydropathy: middleYellow,
-            Hydrophobicity: middleYellow,
-            Mutability: middleRed,
-            Polarity: middleBlue,
-            Charge: middleBlue,
-            NumPositives: middleBlue,
-            NumNegatives: middleRed,
-            LogP: middleYellow,
-            LogD: middleYellow,
-            LogS: middleBlue,
-            Ionizable: middlePurple,
-            BRadius: middleBlack
-        };
-
-        this.maxColor = {
-            Hydropathy: maxYellow,
-            Hydrophobicity: maxYellow,
-            Mutability: maxRed,
-            Polarity: maxBlue,
-            Charge: maxBlue,
-            NumPositives: maxBlue,
-            NumNegatives: maxRed,
-            LogP: maxYellow,
-            LogD: maxYellow,
-            LogS: maxBlue,
-            Ionizable: maxPurple,
-            BRadius: maxBlack
-        };
-    }
-
     public constructor(uiContainerId: string, settings: LayersVizualizerSettings) {
 
         //Register instance
@@ -362,8 +218,6 @@ export class Vizualizer {
         this.configBySettings(settings);
 
         this.canvasId = "layer-vizualizer-canvas" + String(this.publicInstanceIdx);
-
-        this.configureColors();
 
         this.__tunnels = {
             default: null,
@@ -946,23 +800,10 @@ export class Vizualizer {
         return maxY;
     }
 
-    private prepareTunnelObject(minVal: number, maxVal: number, center: number, context: CanvasRenderingContext2D, tunnelLayers: any, isDefaultTunnel: boolean): { tunnel: Tunnel, colorFunctionSettings: any } {
-        let coloringProperty = ((isDefaultTunnel) ? this.coloringPropertyKey : this.customColoringPropertyKey) as PropertyKey;
-        let colorFunctionSettings = {
-            minVal: minVal,
-            maxVal: maxVal,
-            minColor: this.minColor[coloringProperty],
-            maxColor: this.maxColor[coloringProperty],
-            minColorMiddle: this.minColorMiddle[coloringProperty],
-            maxColorMiddle: this.maxColorMiddle[coloringProperty],
-            skipMiddle: (coloringProperty === "NumPositives" || coloringProperty === "NumNegatives" || coloringProperty === "Ionizable")
-                ? true
-                : this.skipMiddle,
-            centerPosition: center,
-            centerAbsolute: (coloringProperty === "NumPositives" || coloringProperty === "NumNegatives" || coloringProperty === "Ionizable")
-                ? false
-                : !this.useColorMinMax
-        };
+    private prepareTunnelObject(context: CanvasRenderingContext2D, tunnelLayers: any, isDefaultTunnel: boolean): { tunnel: Tunnel, colorFunctionSettings: PaletteSettings } {
+        const coloringProperty = ((isDefaultTunnel) ? this.coloringPropertyKey : this.customColoringPropertyKey) as ColoringProperty;
+        const range = { min: this.minColoringValue.get(coloringProperty)!, max: this.maxColoringValue.get(coloringProperty)! };
+        const colorFunctionSettings = paletteSettings(coloringProperty, range, this.useColorMinMax, this.skipMiddle);
 
         let maxY = this.getMaxY((isDefaultTunnel) ? this.maxY : this.customMaxY);
 
@@ -994,15 +835,16 @@ export class Vizualizer {
 
     // The values of a property the colours span: min-max of the channel or absolute bounds, and the centre
     private colorRange(propertyKey: string) {
-        const min = (this.useColorMinMax) ? this.minColoringValue.get(propertyKey) : this.absColorValueMin.get(propertyKey);
+        const [absMin, center, absMax] = SCALES[propertyKey as ColoringProperty];
+        const min = (this.useColorMinMax) ? this.minColoringValue.get(propertyKey) : absMin;
         if (min == void 0) {
             throw Error("Minimal value for property '" + propertyKey + "' was not found!");
         }
-        const max = (this.useColorMinMax) ? this.maxColoringValue.get(propertyKey) : this.absColorValueMax.get(propertyKey);
+        const max = (this.useColorMinMax) ? this.maxColoringValue.get(propertyKey) : absMax;
         if (max == void 0) {
             throw Error("Maximal value for property '" + propertyKey + "' was not found!");
         }
-        return { min, max, center: this.absCenterPositions.get(propertyKey as PropertyKey) ?? 0 };
+        return { min, max, center };
     }
 
     public vizualize() {
@@ -1030,8 +872,8 @@ export class Vizualizer {
 
         const d = this.colorRange(this.coloringPropertyKey);
         const c = this.colorRange(this.customColoringPropertyKey);
-        let defaultTunnelData = this.prepareTunnelObject(d.min, d.max, d.center, context, layers.defaultTunnelLayers, true);
-        let customizableTunnelData = this.prepareTunnelObject(c.min, c.max, c.center, context, layers.customizableTunnelLayers, false);
+        let defaultTunnelData = this.prepareTunnelObject(context, layers.defaultTunnelLayers, true);
+        let customizableTunnelData = this.prepareTunnelObject(context, layers.customizableTunnelLayers, false);
         this.__tunnels.default = { tunnel: defaultTunnelData.tunnel, bounds: at(positioning.defaultTunnel) };
         this.__tunnels.customizable = { tunnel: customizableTunnelData.tunnel, bounds: at(positioning.customizableTunnel) };
 
@@ -1286,41 +1128,7 @@ export class Vizualizer {
     /** Helpers **/
 
     public getColor(value: number, settings: ColorPaletteFunctionSettings) {
-        let minVal = settings.minVal;
-        let maxVal = settings.maxVal;
-        let minColor = settings.minColor;
-        let maxColor = settings.maxColor;
-        let minColorMiddle = settings.minColorMiddle;
-        let maxColorMiddle = settings.maxColorMiddle;
-        let skipMiddle = settings.skipMiddle;
-        let middle = (settings.centerAbsolute) ? settings.centerPosition : (minVal + maxVal) / 2;
-
-        let rgb: RGBColor;
-
-        // values outside the range (possible with absolute bounds) get the colours of its ends
-        value = Math.min(Math.max(value, minVal), maxVal);
-
-        // each half runs from its end colour to its own middle colour at the centre, which is not the midpoint for
-        // absolute bounds
-        if (value < middle) {
-            rgb = interpolate(minVal, minColor, middle, minColorMiddle, value);
-        }
-        else {
-            rgb = interpolate(middle, maxColorMiddle, maxVal, maxColor, value);
-        }
-
-        if (skipMiddle && settings.centerAbsolute) {
-            throw new Error("Cannot config absolute center and skip center at once! Forbidden configuration -> skipMiddle=true && centerAbsolute=true");
-        }
-        if (skipMiddle && !settings.centerAbsolute) {
-            rgb = interpolate(minVal, minColor, maxVal, maxColor, value);
-        }
-
-        if (minVal === maxVal) {
-            rgb = interpolate(0, minColor, 1, maxColorMiddle, 0.5);
-        }
-
-        return "rgb(" + String(Math.floor(rgb.r)) + "," + String(Math.floor(rgb.g)) + "," + String(Math.floor(rgb.b)) + ")";
+        return cssColor(paletteColor(value, settings));
     }
 
 };

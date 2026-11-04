@@ -16,6 +16,7 @@ import { SizeTheme } from 'molstar/lib/mol-theme/size';
 import { Profile } from 'molstar/lib/extensions/sb-ncbr/tunnels/data-model';
 import { LayersInfo } from '../../../DataInterface';
 import { gradientColors } from './property-color';
+import { PropertyColoring } from '../../CommonUtils/PropertyColors';
 import { centreLineOf, closestPoint } from './centre-line';
 
 const DefaultColor = Color(0xCCCCCC);
@@ -24,14 +25,14 @@ const DescriptionColor = 'Assigns colors as defined by the shape object.';
 export const ShapeGroupColorThemeParams = {
     centreLine: ParamDefinition.Value<Profile[]>([], { isHidden: true }),
     layers: ParamDefinition.Value<LayersInfo[]>([], { isHidden: true }),
+    coloring: ParamDefinition.Value<PropertyColoring>({ property: 'Hydropathy', minMax: false }, { isHidden: true }),
 };
 export type ShapeGroupColorThemeParams = typeof ShapeGroupColorThemeParams
 
-// Colours each vertex as the closest centreline point. The colours are read from the gradient when
-// the theme is made, so a theme made again from the same props takes the gradient drawn since.
+// Colours each vertex as the closest centreline point, by the coloring's gradient of the channel's layers
 export function ShapeGroupColorTheme(ctx: ThemeDataContext, props: PD.Values<ShapeGroupColorThemeParams>): ColorTheme<ShapeGroupColorThemeParams> {
     const line = centreLineOf(props.centreLine);
-    const colors = gradientColors(props.centreLine.map(p => p.Distance), props.layers);
+    const colors = gradientColors(props.centreLine.map(p => p.Distance), props.layers, props.coloring);
     return {
         factory: ShapeGroupColorTheme,
         granularity: 'vertex',

@@ -18,8 +18,7 @@ import { PluginCommands } from "molstar/lib/mol-plugin/commands";
 import { ColorGenerator } from "molstar/lib/extensions/meshes/mesh-utils";
 import { Shape } from "molstar/lib/mol-model/shape";
 import { Colors, Enum } from "../StaticData";
-import { ColorBound } from "./VizualizerMol/color-tunnels/property-color";
-import { Property } from "./VizualizerMol/color-tunnels/property-color";
+import { PropertyColoring } from "./CommonUtils/PropertyColors";
 import { LayerColors } from "./CommonUtils/LayerColors";
 import { TwoDProtsBridge } from "./CommonUtils/TwoDProtsBridge";
 import { TunnelsId } from "./CommonUtils/TunnelsId";
@@ -622,11 +621,11 @@ async function updateChannelVisual(channel: Tunnel & TunnelMetaInfo, visible: bo
     }
 }
 
-export function showChannelPropertyColorVisuals(channel: Tunnel & TunnelMetaInfo, colorOptions: { property: Property, colorBounds: ColorBound }, forceRepaint?: boolean, channelsDB?: boolean): Promise<any> {
-    return whileRendering(() => updateChannelPropertyColorVisual(channel, colorOptions, forceRepaint, channelsDB));
+export function showChannelPropertyColorVisuals(channel: Tunnel & TunnelMetaInfo, coloring: PropertyColoring, forceRepaint?: boolean, channelsDB?: boolean): Promise<any> {
+    return whileRendering(() => updateChannelPropertyColorVisual(channel, coloring, forceRepaint, channelsDB));
 }
 
-async function updateChannelPropertyColorVisual(channel: Tunnel & TunnelMetaInfo, colorOptions: { property: Property, colorBounds: ColorBound }, forceRepaint?: boolean, channelsDB?: boolean) {
+async function updateChannelPropertyColorVisual(channel: Tunnel & TunnelMetaInfo, coloring: PropertyColoring, forceRepaint?: boolean, channelsDB?: boolean) {
     const context = Context.getInstance();
 
     try {
@@ -644,11 +643,11 @@ async function updateChannelPropertyColorVisual(channel: Tunnel & TunnelMetaInfo
             }
 
             // a coloured channel only takes the new colours: its surface does not depend on the property
-            if (channel.__layerColored && channel.__isVisible && await context.recolorPropertyColorTunnel(channel.__ref)) return;
+            if (channel.__layerColored && channel.__isVisible && await context.recolorPropertyColorTunnel(channel.__ref, coloring)) return;
 
             // the channel keeps its old visual and state until the new visual is rendered
             const previousRef = channel.__ref;
-            const [loci, ref] = await renderChannel(() => context.renderPropertyColorTunnel(channel, colorOptions));
+            const [loci, ref] = await renderChannel(() => context.renderPropertyColorTunnel(channel, coloring));
             channel.__ref = ref;
             channel.__loci = loci as Shape.Loci;
             channel.__isVisible = true;

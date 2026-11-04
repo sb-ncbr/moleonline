@@ -1,7 +1,7 @@
 import { Color } from 'molstar/lib/mol-util/color';
 import { ColorPaletteFunctionSettings } from './data-model';
 import { LayersInfo } from '../../../DataInterface';
-import { LayerColors } from '../../CommonUtils/LayerColors';
+import { channelGradient, colorAt, layerValue, PropertyColoring } from '../../CommonUtils/PropertyColors';
 
 
 export const DefaultColor = Color(0xFAFAFA);
@@ -254,20 +254,20 @@ export function colorTunnel(property: Property, groupId: number,
     return DefaultColor;
 }
 
-// The colour at each distance along the channel, taken from the gradient the 2D view drew for the chosen property
-export function gradientColors(distances: number[], layers: LayersInfo[]): Color[] {
-    const canvas = LayerColors.getCanvas();
-    const ctx = canvas && canvas.width > 0 ? canvas.getContext('2d', { willReadFrequently: true }) : null;
-    if (!canvas || !ctx || layers.length === 0) {
+// The colour at each distance along the channel: the 2D profile's gradient of the channel by the coloring
+export function gradientColors(distances: number[], layers: LayersInfo[], coloring: PropertyColoring): Color[] {
+    if (layers.length === 0) {
         return distances.map(() => DefaultColor);
     }
-
+    const stops = channelGradient(layers.map(l => ({
+        start: l.LayerGeometry.StartDistance,
+        end: l.LayerGeometry.EndDistance,
+        value: layerValue({ MinBRadius: l.LayerGeometry.MinBRadius, Properties: l.Properties as unknown as Record<string, number> }, coloring.property),
+    })), coloring);
     const totalLength = layers[layers.length - 1].LayerGeometry.EndDistance - layers[0].LayerGeometry.StartDistance;
-    const row = ctx.getImageData(0, 0, canvas.width, 1).data;
     return distances.map(distance => {
-        const n = Math.min(Math.max(distance / totalLength, 0), 1);
-        const x = 4 * Math.floor(n * (canvas.width - 1));
-        return Color.fromRgb(row[x], row[x + 1], row[x + 2]);
+        const { r, g, b } = colorAt(stops, totalLength > 0 ? distance / totalLength : 0);
+        return Color.fromRgb(r, g, b);
     });
 }
 

@@ -29,7 +29,8 @@ import { TunnelName } from "../Cache";
 import { OrderedSet } from 'molstar/lib/mol-data/int';
 import { Vec3 } from "molstar/lib/mol-math/linear-algebra";
 import { getPropertyProps } from "./VizualizerMol/color-tunnels/data-model";
-import { ColorBound, Property } from "./VizualizerMol/color-tunnels/property-color";
+import { PropertyColoring } from "./CommonUtils/PropertyColors";
+import { LayerColors } from "./CommonUtils/LayerColors";
 import { Events } from "../Bridge";
 import { requestError } from "../Http";
 import { StructureElement, StructureProperties } from "molstar/lib/mol-model/structure";
@@ -294,7 +295,7 @@ export class Context {
         return [tunnlRepr.data!.repr.getAllLoci()[0], repr.ref];
     }
 
-    public async renderPropertyColorTunnel(channel: Tunnel & TunnelMetaInfo, colorOptions: { property: Property, colorBounds: ColorBound }): Promise<[Loci, string]> {
+    public async renderPropertyColorTunnel(channel: Tunnel & TunnelMetaInfo, coloring: PropertyColoring): Promise<[Loci, string]> {
         const update = this.plugin.build();
         const webgl = this.plugin.canvas3dContext?.webgl;
         const props = this.tunnelProps(channel);
@@ -305,34 +306,35 @@ export class Context {
         const tunnlRepr = await repr
             .apply(TunnelPropertyColorShapeProvider, {
                 webgl,
+                // the surface's own colours, which the representation's theme replaces by the coloring's
                 colorTheme: {
                     name: 'colorProperty', params: {
-                        property: getPropertyProps(colorOptions.property),
-                        colorBounds: colorOptions.colorBounds,
+                        property: getPropertyProps(LayerColors.toProperty(coloring.property) ?? 'hydropathy'),
+                        colorBounds: coloring.minMax ? 'minmax' : 'absolute',
                         showLayers: true,
                         skipMiddleColors: false
                     }
                 },
                 layers: channel.Layers.LayersInfo
             })
-            .apply(TunnelPropertyColorRepresentation3D, { tunnel: channel as Tunnel })
+            .apply(TunnelPropertyColorRepresentation3D, { tunnel: channel as Tunnel, coloring })
             .commit();
 
         return [tunnlRepr.data!.repr.getAllLoci()[0], repr.ref];
     }
 
     /**
-     * Colours the channel rendered by renderPropertyColorTunnel again from the gradient the 2D view drew since,
-     * keeping its surface. Returns false when the channel has no such visual.
+     * Colours the channel rendered by renderPropertyColorTunnel again by the coloring, keeping its surface. Returns false
+     * when the channel has no such visual.
      */
-    public async recolorPropertyColorTunnel(ref: string): Promise<boolean> {
+    public async recolorPropertyColorTunnel(ref: string, coloring: PropertyColoring): Promise<boolean> {
         const cell = this.plugin.state.data.select(StateSelection.Generators.byRef(ref).subtree().ofType(PluginStateObject.Shape.Representation3D))
             .find(c => (c.obj?.data.sourceData as { tag?: string } | undefined)?.tag === "PropertyColorTunnel");
         if (!cell?.obj) return false;
 
         const repr = cell.obj.data.repr;
         const color = repr.theme.color;
-        repr.setTheme({ ...repr.theme, color: color.factory({}, color.props) });
+        repr.setTheme({ ...repr.theme, color: color.factory({}, { ...color.props, coloring }) });
         await this.plugin.runTask(repr.createOrUpdate());
         // the plugin's representations are synced manually, so the canvas takes the new colours only when told
         this.plugin.canvas3d?.update(repr, true);
