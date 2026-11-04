@@ -38,8 +38,22 @@ import { RightPanel } from "./RightPanel";
 import { LeftPanel } from "./LeftPanel";
 import { initTooltips } from "../Common/Bootstrap";
 import { initLayout } from "./CommonUtils/Layout";
+import { getParameters } from "../Common/Util/Router";
+import { legacyLocation } from "../Common/Util/Legacy";
+import { SessionInfo } from "../DataProxy";
 
 (function () {
+    // A computation this API does not know may be one of the previous MOLEonline, shown by its archive
+    const params = getParameters();
+    SessionInfo.setWhenUnknown(async sessionId => {
+        const legacy = sessionId === params?.computationId
+            ? await legacyLocation(sessionId, location.pathname + location.search) : null;
+        if (legacy !== null) {
+            location.replace(legacy);
+        }
+        return legacy !== null;
+    });
+
     initTooltips();
     initLayout();
     updateWithCurrentSession();

@@ -1,6 +1,6 @@
 import { CommonOptions } from "../config/common";
 import { ApiService, CSAResidues, Cofactors, isDone, Job, Session } from "./MoleAPIService";
-import { describeError, isRefused } from "./Http";
+import { describeError, isNotFound, isRefused } from "./Http";
 import {Tunnel} from "./DataInterface";
 
 type DataHandler<T> = (key: string, data: T) => void;
@@ -87,8 +87,22 @@ class KeyedDataProvider<T> {
 }
 
 export namespace SessionInfo {
+    type UnknownHandler = (sessionId: string) => Promise<boolean>;
+    let whenUnknown: UnknownHandler | undefined;
+
+    // Asked about a session the API does not know (404) before its handlers learn it; true when it took the page
+    // elsewhere, so the handlers never do. Set by a page for its own session only (the detail page, View/App.tsx).
+    export function setWhenUnknown(handler: UnknownHandler | undefined) {
+        whenUnknown = handler;
+    }
+
     export const DataProvider = new KeyedDataProvider<Session>(
-        sessionId => ApiService.getSession(sessionId),
+        sessionId => ApiService.getSession(sessionId).catch(async err => {
+            if (isNotFound(err) && await whenUnknown?.(sessionId)) {
+                return new Promise<never>(() => { });
+            }
+            throw err;
+        }),
         'Could not load the session from the MOLE API.',
     );
 

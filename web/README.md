@@ -47,3 +47,7 @@ Other commands:
 | `npm run typecheck` | Type check |
 | `npm run build` | Production build; needs `VITE_API_URL`, e.g. `VITE_API_URL=/api npm run build` |
 | `npm run api-types` | Regenerates `sources/src/MoleAPISchema.d.ts` from `../backend/openapi.json` after the API changed |
+
+A computation the API does not know is looked up in the previous MOLEonline's API (`VITE_LEGACY_API_URL`); if it is
+there, the page goes to the same path in the previous version's read-only archive (`VITE_LEGACY_URL`). The image sets
+both (`docker/Dockerfile`); without them, as with `npm run dev`, nothing is looked up.

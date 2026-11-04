@@ -10,6 +10,10 @@ COPY . ./
 
 # Path of the MOLE API baked into the site, served by this site's nginx (site.conf)
 ARG VITE_API_URL=/api
+# The previous MOLEonline: computations this API does not know are looked up in its API and shown in its archive
+# (sources/config/common.ts); empty: not looked up
+ARG VITE_LEGACY_URL=https://moleonline-legacy.biodata.ceitec.cz
+ARG VITE_LEGACY_API_URL=https://api.mole.upol.cz
 
 RUN npm run build
 

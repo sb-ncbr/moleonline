@@ -63,6 +63,48 @@ describe('SessionStatus.waitUntilLoaded', () => {
     });
 });
 
+describe('SessionInfo.setWhenUnknown', () => {
+    afterEach(() => { SessionInfo.setWhenUnknown(undefined); });
+
+    const notFound = () => new RequestError('Session not found.', 404, true);
+
+    it('is asked about a session the API does not know before its handlers fail', async () => {
+        api.getSession.mockReset().mockRejectedValueOnce(notFound());
+        const asked: string[] = [];
+        SessionInfo.setWhenUnknown(async id => { asked.push(id); return false; });
+        const failed = vi.fn();
+        SessionInfo.DataProvider.get('unknown-kept', vi.fn(), false, failed);
+        await vi.waitFor(() => expect(failed).toHaveBeenCalledWith('unknown-kept', 'Session not found.'));
+        expect(asked).toEqual(['unknown-kept']);
+    });
+
+    it('keeps the handlers waiting when it took the page elsewhere', async () => {
+        api.getSession.mockReset().mockRejectedValueOnce(notFound());
+        let asked = false;
+        SessionInfo.setWhenUnknown(async () => { asked = true; return true; });
+        const loaded = vi.fn(), failed = vi.fn();
+        SessionInfo.DataProvider.get('unknown-left', loaded, false, failed);
+        await vi.waitFor(() => expect(asked).toBe(true));
+        await new Promise(res => setTimeout(res, 10));
+        expect(loaded).not.toHaveBeenCalled();
+        expect(failed).not.toHaveBeenCalled();
+    });
+
+    it('is not asked about a session the API knows, nor when the API fails otherwise', async () => {
+        const whenUnknown = vi.fn(async () => true);
+        SessionInfo.setWhenUnknown(whenUnknown);
+        api.getSession.mockReset().mockResolvedValueOnce(session('ready'));
+        const loaded = vi.fn();
+        SessionInfo.DataProvider.get('known', loaded);
+        await vi.waitFor(() => expect(loaded).toHaveBeenCalled());
+        api.getSession.mockRejectedValueOnce(new RequestError('Gone.', 410, true));
+        const failed = vi.fn();
+        SessionInfo.DataProvider.get('deleted', vi.fn(), false, failed);
+        await vi.waitFor(() => expect(failed).toHaveBeenCalledWith('deleted', 'Gone.'));
+        expect(whenUnknown).not.toHaveBeenCalled();
+    });
+});
+
 describe('SessionInfo.DataProvider.subscribe', () => {
     it('stops calling an unsubscribed handler', async () => {
         let answer!: (s: unknown) => void;

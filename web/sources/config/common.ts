@@ -3,6 +3,12 @@ export class DataSources {
     // CORS headers, so the browser must call it from the same origin, never another site's URL.
     public static API_URL: string = import.meta.env.VITE_API_URL;
 
+    // The previous MOLEonline's read-only archive and its API, set at build time from VITE_LEGACY_URL and
+    // VITE_LEGACY_API_URL: a computation this API does not know is looked up there (Common/Util/Legacy.ts). Empty: not
+    // looked up. The old API answers any origin, so the browser asks it directly.
+    public static LEGACY_URL: string = import.meta.env.VITE_LEGACY_URL ?? "";
+    public static LEGACY_API_URL: string = import.meta.env.VITE_LEGACY_API_URL ?? "";
+
     public static PATTERN_QUERY_API_URL: any = {
         "webchem": "https://webchem.ncbr.muni.cz/Platform/PatternQuery/ValidateQuery",
     }
