@@ -72,7 +72,7 @@ patches:
       spec:
         resources:
           requests:
-            storage: 1Ti
+            storage: 2Ti
   # Both domains serve the site, each with a certificate of its own: one domain that does not resolve to the cluster
   # yet does not hold up the other's
   - patch: |-

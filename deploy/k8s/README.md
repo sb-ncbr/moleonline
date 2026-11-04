@@ -5,7 +5,7 @@ The manifests for the [CERIT-SC](https://docs.cerit.io/) cluster `kuba-cluster`,
 
 - [`base/`](base): the whole application, without a namespace or a domain: PostgreSQL (CloudNativePG), a shared volume
   for structures and results, the API, the workers, the website and a Gateway with a Let's Encrypt certificate
-- [`dev/`](dev): the dev instance, in the namespace `racek1-ns` at `moleonline-dev.biodata.ceitec.cz`
+- [`dev/`](dev): the dev instance, in the namespace `moleonline-dev-ns` at `moleonline-dev.biodata.ceitec.cz`
 - [`prod/`](prod): the production instance, in the namespace `moleonline-ns` at `moleonline.biodata.ceitec.cz` and
   `moleonline.cz`, with a nightly dump of the database
 
@@ -23,7 +23,7 @@ The domain needs a DNS CNAME to `kuba-lb.cloud.e-infra.cz`. The certificate is i
 To pick up newly published images:
 
 ```sh
-kubectl --context kuba-cluster -n racek1-ns rollout restart deployment
+kubectl --context kuba-cluster -n moleonline-dev-ns rollout restart deployment
 ```
 
 ## Production
@@ -52,10 +52,10 @@ needed, the number of workers (`replicas` of `moleonline-worker`, with `MAX_RUNN
 ## Operating it
 
 ```sh
-kubectl -n racek1-ns get pods
-kubectl -n racek1-ns logs deploy/moleonline-api
-kubectl -n racek1-ns logs deploy/moleonline-worker --all-containers --prefix
-kubectl -n racek1-ns exec deploy/moleonline-api -- /app/.venv/bin/python -m moleonline.api.stats month
+kubectl -n moleonline-dev-ns get pods
+kubectl -n moleonline-dev-ns logs deploy/moleonline-api
+kubectl -n moleonline-dev-ns logs deploy/moleonline-worker --all-containers --prefix
+kubectl -n moleonline-dev-ns exec deploy/moleonline-api -- /app/.venv/bin/python -m moleonline.api.stats month
 ```
 
 Restarting any deployment is safe: waiting computations stay queued, running ones fail as interrupted and can be
