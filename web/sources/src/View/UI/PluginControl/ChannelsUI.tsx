@@ -284,7 +284,7 @@ export class ChannelsControl extends React.Component<ChannelsControlProps, Chann
         let submissionsControls: any[] = [];
 
         if (this.state.submissionsElems.size === 0) {
-            return <div className="ui-channels d-flex flex-column" style={{ maxHeight: '100vh', padding: '0 0', marginRight: '0px' }}>
+            return <div className="ui-channels d-flex flex-column flex-fill" style={{ minHeight: 0, padding: '0 0', marginRight: '0px' }}>
                 <div>
                     <div className="ui-header flex-grow-0 flex-shrink-0" style={{ margin: 0 }}>
                         Channels
@@ -317,7 +317,7 @@ export class ChannelsControl extends React.Component<ChannelsControlProps, Chann
 
         let noChannelsData = <div className="no-channels-data">No channels found.</div>
 
-        return <div className="ui-channels d-flex flex-column" style={{ maxHeight: '100vh', padding: '0 0', marginRight: '0px' }}>
+        return <div className="ui-channels d-flex flex-column flex-fill" style={{ minHeight: 0, padding: '0 0', marginRight: '0px' }}>
                 <div className="ui-header channels-header flex-grow-0 flex-shrink-0" style={{ margin: 0 }}>
                     <span>
                         Channels
