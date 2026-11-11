@@ -46,7 +46,7 @@ vi.stubGlobal("document", { getElementById: () => null });
 vi.stubGlobal("window", new EventTarget());
 vi.stubGlobal("requestAnimationFrame", (callback: () => void) => setTimeout(callback));
 
-const { showChannelVisuals, showChannelPropertyColorVisuals, colorShownChannels, uncolorShownChannels, shownChannelProperties, isRenderingChannels } = await import("./State");
+const { showChannelVisuals, showDefaultVisualsNewSubmission, showChannelPropertyColorVisuals, colorShownChannels, uncolorShownChannels, shownChannelProperties, isRenderingChannels } = await import("./State");
 const { listen } = await import("./CommonUtils/Events");
 const { LastVisibleChannels } = await import("../Cache");
 
@@ -92,6 +92,20 @@ describe("channel visual operations", () => {
         await showChannelVisuals([c], false);
         expect(plugin.rendered.size).toBe(0);
         expect(c.__isVisible).toBe(false);
+    });
+
+    it("leaves a default channel the user showed while the defaults rendered as it is", async () => {
+        const [first, second] = [channel(), channel()];
+        const defaults = showDefaultVisualsNewSubmission({ Tunnels: [first, second] } as any, "1");
+        // listed before they are rendered: their checkboxes wait
+        expect([first.__isBusy, second.__isBusy]).toEqual([true, true]);
+
+        await settle(defaults, showChannelVisuals([second], true));
+        expect(plugin.rendered).toEqual(new Set([first.__ref, second.__ref]));
+        expect([first.__isBusy, second.__isBusy]).toEqual([false, false]);
+
+        await showChannelVisuals([second], false);
+        expect(plugin.rendered).toEqual(new Set([first.__ref]));
     });
 
     it("keeps only the last visual of overlapping repaints", async () => {

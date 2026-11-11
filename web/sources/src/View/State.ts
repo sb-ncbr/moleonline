@@ -513,9 +513,16 @@ function showChannelDefaultVisuals(channels: Tunnel[] & TunnelMetaInfo[], channe
 async function updateChannelDefaultVisuals(channels: Tunnel[] & TunnelMetaInfo[], channelsDB: boolean, submitId: string): Promise<any> {
     const context = Context.getInstance();
 
+    // listed already: their checkboxes wait for them
+    for (let channel of channels) {
+        channel.__isBusy = true;
+    }
     try {
         for (let channel of channels) {
             await serializeChannelOperation(channel, async () => {
+                // shown by the user meanwhile (by All, or a click on its name), rendering it again would leave
+                // that visual untracked
+                if (channel.__isVisible) return;
                 channel.__id = UUID.create22();
 
                 if (channel.__color === void 0) {

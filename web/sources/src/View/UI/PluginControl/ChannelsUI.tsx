@@ -43,7 +43,7 @@ type ChannelsControlState = {
 export class ChannelsControl extends React.Component<ChannelsControlProps, ChannelsControlState> {
     //TODO store selected/visualized tunnels for 2DProts
     state: ChannelsControlState = {
-        submissions: new Map<number, ChannelsDBChannels>(), submissionsElems: new Map<number, any[]>(), currentSubmitId: 0,
+        submissions: this.props.submissions, submissionsElems: new Map<number, any[]>(), currentSubmitId: 0,
         isRendering: isRenderingChannels(), colorAllProperties: [], colorAllShown: 0, colorAllMinMax: false,
     };
     private colorAllButton = React.createRef<HTMLButtonElement>();
@@ -77,7 +77,7 @@ export class ChannelsControl extends React.Component<ChannelsControlProps, Chann
     private channelsPublished = false;
 
     // Publishes the initially displayed submission's channels unless a submission
-    // change already published newer data while the initial visuals were loading.
+    // change already published newer data before.
     private publishInitialChannels(submitId: number) {
         if (!this.channelsPublished) {
             this.handleTunnelsCollect(submitId);
@@ -130,6 +130,8 @@ export class ChannelsControl extends React.Component<ChannelsControlProps, Chann
     }
     
     private async showInitialChannels(submitId: number) {
+        // published before the first channels are rendered, which takes a while: the channels are there already
+        this.publishInitialChannels(submitId);
         try {
             await showDefaultVisuals(submitId, this.props.submissions);
         } catch (e) {
@@ -139,8 +141,8 @@ export class ChannelsControl extends React.Component<ChannelsControlProps, Chann
                 message: describeError(e, "Channels could not be displayed.")
             });
         }
+        // listed again, so the checkboxes show the channels rendered
         this.saveChannelsElems();
-        this.publishInitialChannels(submitId);
     }
 
     initializeSubmissionData() {
@@ -171,6 +173,8 @@ export class ChannelsControl extends React.Component<ChannelsControlProps, Chann
     private loadingSubmitIds = new Set<number>();
 
     componentDidMount() {
+        // the channels are listed at once, not only after the first of them are rendered, which takes a while
+        this.saveChannelsElems();
         this.initializeSubmissionData();
 
         this.unsubscribe.push(Events.subscribeSubmitDone(async (newSubmitId, state) => {
@@ -215,8 +219,6 @@ export class ChannelsControl extends React.Component<ChannelsControlProps, Chann
         }));
 
         this.unsubscribe.push(Events.subscribeChangeSubmitId(this.handleTunnelsCollect.bind(this)));
-
-        this.setState({ submissions: this.props.submissions })
 
         this.unsubscribe.push(listen("channelsRendering", isRendering => this.setState({ isRendering })));
         this.setState({ isRendering: isRenderingChannels() });
