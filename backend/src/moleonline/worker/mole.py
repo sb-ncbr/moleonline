@@ -85,24 +85,33 @@ def computation_input(s: StoredSession, p: MoleParameters, directory: Path) -> P
                           SurfaceCoverRadius=number(p.Tunnel.SurfaceCoverRadius), WeightFunction=p.Tunnel.WeightFunction,
                           UseCustomExitsOnly=flag(has_origin and has_exits)))
     root.append(params)
-    root.append(export(structure, tunnels=has_origin or not has_exits, pores_auto=p.PoresAuto, pores_merged=p.PoresMerged,
-                       pores_user=has_exits and not has_origin))
+    root.append(export(viewer_pdb_id(s), tunnels=has_origin or not has_exits, pores_auto=p.PoresAuto,
+                       pores_merged=p.PoresMerged, pores_user=has_exits and not has_origin))
     root.append(origins(p.Origin, "Origin", "Origin"))
     if has_exits:
         root.append(origins(p.CustomExits, "CustomExit", "Exit"))
     return write(root, directory / INPUT)
 
 
-def export(structure: Path, tunnels: bool = False, pores_auto: bool = False, pores_merged: bool = False,
+def viewer_pdb_id(s: StoredSession) -> str | None:
+    """The PDB entry the viewers' scripts fetch when the structure file is not next to them: only of the asymmetric unit,
+    which is what PyMOL, VMD and Chimera fetch; an assembly can have other chains (copies made by symmetry, or fewer),
+    and an upload is no PDB entry"""
+    return s.pdb_id if s.pdb_id is not None and s.assembly_id is None else None
+
+
+def export(pdb_id: str | None, tunnels: bool = False, pores_auto: bool = False, pores_merged: bool = False,
            pores_user: bool = False) -> ET.Element:
     """The results in all formats (the web's data.json, the report, the viewers' scripts), of the types computed;
-    without types, the paths of the input (a pore computation)"""
+    without types, the paths of the input (a pore computation). The scripts load the structure file next to them,
+    without it they fetch pdb_id, if any (viewer_pdb_id)."""
     result = element("Export")
     result.append(element("Formats", ChargeSurface="0", PyMol="1", PDBProfile="1", VMD="1", Chimera="1", CSV="1", JSON="1"))
     result.append(element("Types", Cavities="0", Tunnels=flag(tunnels), PoresAuto=flag(pores_auto), PoresMerged=flag(pores_merged),
                           PoresUser=flag(pores_user)))
+    fetch = {} if pdb_id is None else {"PDBId": pdb_id}
     for viewer in ("PyMol", "VMD", "Chimera"):
-        result.append(element(viewer, PDBId=structure.stem, SurfaceType="Spheres"))
+        result.append(element(viewer, **fetch, SurfaceType="Spheres"))
     return result
 
 

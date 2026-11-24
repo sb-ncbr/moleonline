@@ -10,6 +10,7 @@ import pytest
 from moleonline.api.main import STATIC_FILES
 
 from .conftest import MOLE_VERSION, STRUCTURE, query, upload, wait, wait_for_file, wait_session
+from .test_pdbe import ASSEMBLIES, FULL, XML, FakePDBe, assembly
 from .test_requests import logged
 from .test_runner import UNTIL_GO
 
@@ -76,7 +77,7 @@ def test_input_of_the_examples(client):
                                                  "OriginRadius": "5", "SurfaceCoverRadius": "10", "WeightFunction": "VoronoiScale",
                                                  "UseCustomExitsOnly": "0"}
     assert root.find("Export/Types").attrib == {"Cavities": "0", "Tunnels": "1", "PoresAuto": "0", "PoresMerged": "0", "PoresUser": "0"}
-    assert root.find("Export/PyMol").attrib == {"PDBId": "1tqn", "SurfaceType": "Spheres"}
+    assert viewers(root) == [{"SurfaceType": "Spheres"}] * 3  # an upload: no PDB entry for the scripts to fetch
     assert [r.attrib for r in root.findall("Origins/Origin/Residue")] == [{"SequenceNumber": "308", "Chain": "A"},
                                                                           {"SequenceNumber": "309", "Chain": "A"}]
     assert root.find("CustomExits") is None
@@ -97,6 +98,23 @@ def test_input_of_the_examples(client):
     assert root.findtext("CustomExits/Exit/Query") == "Residues('HEM')"
     assert root.find("NonActiveParts/Residue").attrib == {"SequenceNumber": "1", "Chain": "A"}
     assert root.findtext("NonActiveParts/Query") == "Atoms('Fe')"
+
+
+def viewers(root: ET.Element) -> list[dict]:
+    """What MOLE's input asks of the PyMOL, VMD and Chimera scripts"""
+    return [root.find(f"Export/{viewer}").attrib for viewer in ("PyMol", "VMD", "Chimera")]
+
+
+@pytest.mark.parametrize("requested, routes, fetched", [
+    ({"assembly": "asymmetric"}, {FULL: STRUCTURE}, {"PDBId": "1tqn"}),  # what PyMOL, VMD and Chimera fetch
+    ({}, {XML: ASSEMBLIES, assembly("1"): STRUCTURE}, {}),  # an assembly: its chains are not the fetched ones
+])
+def test_scripts_fetch_only_the_asymmetric_unit(client, requested, routes, fetched):
+    FakePDBe(client, routes)
+    id = client.post("/sessions", json={"pdb_id": "1tqn", **requested}).json()["id"]
+    assert wait_session(client, id)["state"] == "ready"
+    submit(client, id)
+    assert viewers(xml(client, id, 1)) == [fetched | {"SurfaceType": "Spheres"}] * 3
 
 
 @pytest.mark.parametrize("parameters, message", [

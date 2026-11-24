@@ -58,7 +58,8 @@ def run(parameters_path: Path) -> None:
     if not np.isfinite([start, end]).all():
         raise PathError("The ends of the pore could not be computed, they contain invalid numbers.")
     write_mole_input(chains_only(structure, structure_path, chains, working_directory), working_directory, start, end,
-                     parameters.ProbeRadius, parameters.InteriorThreshold, through=not parameters.InMembrane)
+                     parameters.ProbeRadius, parameters.InteriorThreshold, through=not parameters.InMembrane,
+                     pdb_id=parameters.ViewerPdbId)
 
 
 def main() -> None:

@@ -6,7 +6,7 @@ import zipfile
 import pytest
 
 from .conftest import STRUCTURE, upload, wait, wait_session
-from .test_pdbe import ASSEMBLIES, XML, FakePDBe, assembly
+from .test_pdbe import ASSEMBLIES, FULL, XML, FakePDBe, assembly
 from .test_requests import logged
 from .test_runner import STARTED
 from .test_submit import submit as submit_job
@@ -36,7 +36,7 @@ def test_pore_is_computed(api, settings):
 
     folder, scratch = settings.working_directory / id, settings.scratch_directory / id
     assert json.loads((scratch / "1.json").read_text()) == {  # as the fake pores tool kept it
-        "Structure": str(folder / "1tqn.cif"), "PdbId": None, "WorkingDirectory": str(scratch / "1"),
+        "Structure": str(folder / "1tqn.cif"), "PdbId": None, "ViewerPdbId": None, "WorkingDirectory": str(scratch / "1"),
         "Membrane": str(scratch / "1" / "membrane.json"), "Memembed": str(settings.memembed), "OpmCache": str(settings.opm_cache),
         "InMembrane": True, "IsBetaBarrel": False, "Chains": ["A", "A_2"], "ProbeRadius": 13.0, "InteriorThreshold": 0.8}
     with zipfile.ZipFile(folder / "jobs" / "1" / "report.zip") as report:
@@ -77,6 +77,17 @@ def test_opm_membrane_for_the_preferred_assembly(client, settings):
     wait(client, id, 1)
     saved = json.loads((settings.scratch_directory / id / "1.json").read_text())
     assert (saved["PdbId"], saved["ProbeRadius"], saved["InteriorThreshold"]) == ("1tqn", 10.0, 1.0)
+    assert saved["ViewerPdbId"] is None  # an assembly: the viewers' scripts would fetch other chains
+
+
+def test_viewers_fetch_the_asymmetric_unit(client, settings):
+    FakePDBe(client, {FULL: STRUCTURE})
+    id = client.post("/sessions", json={"pdb_id": "1tqn", "assembly": "asymmetric"}).json()["id"]
+    wait_session(client, id)
+    submit(client, id)
+    wait(client, id, 1)
+    saved = json.loads((settings.scratch_directory / id / "1.json").read_text())
+    assert (saved["PdbId"], saved["ViewerPdbId"]) == (None, "1tqn")  # OPM has the preferred assembly only
 
 
 @pytest.mark.parametrize("pores, run, message", [

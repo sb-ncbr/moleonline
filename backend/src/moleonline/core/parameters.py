@@ -94,6 +94,7 @@ class PoresParameters(Defaults):
     earlier versions miss fields (IsBetaBarrel was IsBetaBarel): their defaults."""
     Structure: str = ""  # the structure file of the computation
     PdbId: str | None = None  # OPM entry to use; None when the structure is not the PDB entry as OPM has it
+    ViewerPdbId: str | None = None  # the entry the viewers' scripts fetch without the structure file (mole.viewer_pdb_id)
     WorkingDirectory: str = ""  # the submit directory, MOLE input and results
     Membrane: str = ""  # where the tool writes membrane.json
     Memembed: str = ""  # the MEMEMBED executable (setting MEMEMBED)

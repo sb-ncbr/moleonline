@@ -110,7 +110,8 @@ def job(settings: WorkerSettings, s: StoredSession, directory: Path, number: int
     else:
         tool_input = directory / PORES_PARAMETERS
         tool_input.write_text(PoresParameters(
-            Structure=str(s.structure_path()), PdbId=s.pdb_id if s.opm else None, WorkingDirectory=str(directory),
+            Structure=str(s.structure_path()), PdbId=s.pdb_id if s.opm else None, ViewerPdbId=mole.viewer_pdb_id(s),
+            WorkingDirectory=str(directory),
             Membrane=str(directory / JOB_MEMBRANE), Memembed=str(settings.memembed), OpmCache=str(settings.opm_cache),
             **PoresRequest.model_validate(found.parameters).model_dump(),
         ).model_dump_json(indent=2))

@@ -3,6 +3,7 @@
 import json
 import shutil
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
 import numpy as np
 import pytest
@@ -55,6 +56,17 @@ def test_writes_membrane_and_mole_input(tmp_path):
     # MOLE computes with a copy of only the chosen chains, of the same name
     assert f">{computation / '1' / '1k4c.cif'}</Input>" in mole_input
     assert [chain.name for chain in read_structure(computation / "1" / "1k4c.cif")[0]] == ["C", "C_2"]
+
+
+@pytest.mark.parametrize("viewer_pdb_id, fetched", [
+    ("1k4c", {"PDBId": "1k4c"}),  # the asymmetric unit of a PDB entry: the viewers' scripts fetch it without the file
+    (None, {}),  # an assembly or an upload: they only load the file
+])
+def test_what_the_viewers_scripts_fetch(tmp_path, viewer_pdb_id, fetched):
+    opm_in_cache(tmp_path)
+    run(parameters(tmp_path, ["C", "C_2"], ViewerPdbId=viewer_pdb_id))
+    root = ET.parse(tmp_path / "computation" / "1" / "input.xml").getroot()
+    assert [root.find(f"Export/{viewer}").attrib for viewer in ("PyMol", "VMD", "Chimera")] == [fetched | {"SurfaceType": "Spheres"}] * 3
 
 
 def test_unexpected_error_is_one_line(tmp_path, monkeypatch, capsys):

@@ -90,9 +90,10 @@ def _point(xyz: np.ndarray) -> ET.Element:
 
 
 def write_mole_input(structure_path: Path, working_directory: Path, start: np.ndarray, end: np.ndarray,
-                     probe_radius: float, interior_threshold: float, through: bool) -> Path:
+                     probe_radius: float, interior_threshold: float, through: bool, pdb_id: str | None = None) -> Path:
     """MOLE's input (mole.INPUT in working_directory): the path from start to end, weighted by its length, through
-    the protein without HET atoms and hydrogens; through: an axis path through the whole protein"""
+    the protein without HET atoms and hydrogens; through: an axis path through the whole protein; pdb_id: what the
+    viewers' scripts fetch without the structure file (mole.export)"""
     root = mole.element("Tunnels")
     root.append(mole.element("Input", str(structure_path), SpecificChains="", ReadAllModels="0"))
     root.append(mole.element("WorkingDirectory", str(working_directory)))
@@ -101,7 +102,7 @@ def write_mole_input(structure_path: Path, working_directory: Path, start: np.nd
                                IgnoreHETAtoms="1", IgnoreHydrogens="1"))
     params.append(mole.element("Tunnel", WeightFunction="Length"))
     root.append(params)
-    root.append(mole.export(structure_path))
+    root.append(mole.export(pdb_id))
     path = mole.element("Path", **({"Axis": "1"} if through else {}))
     for tag, xyz in (("Start", start), ("End", end)):
         path.append(parent := mole.element(tag))
