@@ -4,7 +4,7 @@ import { getParameters } from "../../../Common/Util/Router";
 import { ApiService, ResultFormat } from "../../../MoleAPIService";
 import { Tunnels } from "../../CommonUtils/Tunnels";
 import { cleanCifContent, JSON2CIF } from "../../VizualizerMol/mmcif-tunnels/converter";
-import { describeError, requestError } from "../../../Http";
+import { attachmentName, describeError, requestError } from "../../../Http";
 
 export class DownloadReport extends React.Component<{}, {}> {
 
@@ -72,6 +72,8 @@ class DownloadResultsMenu extends React.Component<{}, DownloadResultsMenuState> 
             return;
         }
 
+        // the session's own file name, which the viewers' scripts of the results load when it is next to them
+        const fileName = attachmentName(response, "structure.cif");
         let cifText = await response.text();
         cifText = cleanCifContent(cifText);
         const tunnelData = Tunnels.generateTunnelsDataJson();
@@ -106,7 +108,7 @@ ${auditLine}
 
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = "structure.cif";
+        link.download = fileName;
 
         link.click();
 

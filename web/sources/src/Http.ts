@@ -46,6 +46,11 @@ export async function requestError(method: string, url: string, response: Respon
     return error;
 }
 
+// The file name the API gives a download (Content-Disposition: attachment; filename="..."), or the fallback
+export function attachmentName(response: Response, fallback: string): string {
+    return /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") ?? "")?.[1] ?? fallback;
+}
+
 // In debug mode, every request is logged with the time it took, reading the response body included.
 // timeoutSeconds: without the whole response by then, the request fails with a RequestError of status 0, as one not
 // answered at all (not refused: asking again later can succeed)

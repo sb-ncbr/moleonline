@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CommonOptions } from '../config/common';
-import { describeError, getJson, getText, isNotFound, isRefused, postJson, requestError, RequestError } from './Http';
+import { attachmentName, describeError, getJson, getText, isNotFound, isRefused, postJson, requestError, RequestError } from './Http';
 
 const response = (status: number, body: unknown, statusText = 'Status') =>
     new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, statusText });
@@ -36,6 +36,17 @@ describe('describeError', () => {
     it('adds the reason to the fallback otherwise', () => {
         expect(describeError(new TypeError('Failed to fetch'), 'Could not load')).toBe('Could not load (Failed to fetch)');
         expect(describeError('timeout', 'Could not load')).toBe('Could not load (timeout)');
+    });
+});
+
+describe('attachmentName', () => {
+    it("is the file name the API gives the download", () => {
+        const response = new Response('', { headers: { 'Content-Disposition': 'attachment; filename="uploaded_3ldc.cif"' } });
+        expect(attachmentName(response, 'structure.cif')).toBe('uploaded_3ldc.cif');
+    });
+
+    it("is the fallback without one", () => {
+        expect(attachmentName(new Response(''), 'structure.cif')).toBe('structure.cif');
     });
 });
 
